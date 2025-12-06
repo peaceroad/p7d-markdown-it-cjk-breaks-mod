@@ -1,6 +1,11 @@
 import eastAsianWidthModule from 'eastasianwidth';
 
 const { eastAsianWidth } = eastAsianWidthModule;
+const ASCII_PRINTABLE_MIN = 0x21;
+const ASCII_PRINTABLE_MAX = 0x7E;
+const IDEOGRAPHIC_SPACE = '\u3000';
+const DEFAULT_PUNCTUATION_TARGETS = ['！', '？', '⁉', '！？', '？！', '!?', '?!'];
+const DEFAULT_PUNCTUATION_CONFIG = create_punctuation_config(DEFAULT_PUNCTUATION_TARGETS);
 
 
 function is_surrogate(c1, c2) {
@@ -16,23 +21,109 @@ function is_hangul(c) {
 }
 
 
+function create_punctuation_config(targets) {
+  var sequences = new Set();
+  var maxLength = 0;
+
+  for (var i = 0; i < targets.length; i++) {
+    var value = targets[i];
+    if (typeof value !== 'string' || value.length === 0) continue;
+    sequences.add(value);
+    if (value.length > maxLength) maxLength = value.length;
+  }
+
+  return { sequences: sequences, maxLength: maxLength };
+}
+
+
+function resolve_punctuation_space_option(opts) {
+  if (!opts || !opts.spaceAfterPunctuation) return '';
+
+  var option = opts.spaceAfterPunctuation;
+  if (option === 'half') return ' ';
+  if (option === 'full') return IDEOGRAPHIC_SPACE;
+  if (typeof option === 'string' && option.length > 0) return option;
+  return '';
+}
+
+
+function resolve_punctuation_targets(opts) {
+  if (!opts || !opts.spaceAfterPunctuationTargets) return DEFAULT_PUNCTUATION_CONFIG;
+
+  var customTargets = opts.spaceAfterPunctuationTargets;
+  if (typeof customTargets === 'string') customTargets = [ customTargets ];
+  if (!Array.isArray(customTargets) || customTargets.length === 0) return DEFAULT_PUNCTUATION_CONFIG;
+
+  var config = create_punctuation_config(customTargets);
+  return config.sequences.size === 0 ? DEFAULT_PUNCTUATION_CONFIG : config;
+}
+
+
+function should_insert_punctuation_space(last, trailing, next, punctuationSpace, punctuationConfig) {
+  if (!punctuationSpace || !punctuationConfig) return false;
+  if (!last || !next) return false;
+  if (next === '\u200b') return false;
+  if (!matches_punctuation_sequence(trailing, punctuationConfig)) return false;
+
+  return is_printable_ascii(next) || is_fullwidth_or_wide(next);
+}
+
+
+function matches_punctuation_sequence(trailing, punctuationConfig) {
+  if (!trailing || !punctuationConfig || punctuationConfig.maxLength === 0) return false;
+
+  var sequences = punctuationConfig.sequences;
+  var maxLength = Math.min(trailing.length, punctuationConfig.maxLength);
+
+  for (var len = maxLength; len > 0; len--) {
+    var fragment = trailing.slice(-len);
+    if (sequences.has(fragment)) return true;
+  }
+  return false;
+}
+
+
+function is_printable_ascii(ch) {
+  if (!ch) return false;
+  var code = ch.charCodeAt(0);
+  return code >= ASCII_PRINTABLE_MIN && code <= ASCII_PRINTABLE_MAX;
+}
+
+
+function is_fullwidth_or_wide(ch) {
+  if (!ch) return false;
+  var width = eastAsianWidth(ch);
+  return width === 'F' || width === 'W';
+}
+
+
 function process_inlines(tokens, state, opts) {
-  var i, j, last, next, c1, c2, remove_break;
+  var i, j, last, trailing, next, c1, c2, remove_break;
   var either = opts && opts.either;
+  var punctuationSpace = resolve_punctuation_space_option(opts);
+  var punctuationConfig = punctuationSpace ? resolve_punctuation_targets(opts) : null;
+  var maxPunctuationLength = punctuationConfig ? punctuationConfig.maxLength : 0;
 
   for (i = 0; i < tokens.length; i++) {
-    if (tokens[i].type !== 'softbreak') continue;
+    var isSoftbreakToken = tokens[i].type === 'softbreak';
+    var isTextBreakToken = tokens[i].type === 'text' && tokens[i].content === '\n';
+    if (!isSoftbreakToken && !isTextBreakToken) continue;
 
     // default last/next character to space
     last = next = ' ';
+    trailing = '';
 
     for (j = i - 1; j >= 0; j--) {
       if (tokens[j].type !== 'text') continue;
 
-      c1 = tokens[j].content.charCodeAt(tokens[j].content.length - 2);
-      c2 = tokens[j].content.charCodeAt(tokens[j].content.length - 1);
+      var textContent = tokens[j].content;
+      c1 = textContent.charCodeAt(textContent.length - 2);
+      c2 = textContent.charCodeAt(textContent.length - 1);
 
-      last = tokens[j].content.slice(is_surrogate(c1, c2) ? -2 : -1);
+      last = textContent.slice(is_surrogate(c1, c2) ? -2 : -1);
+      trailing = maxPunctuationLength > 0 ?
+        textContent.slice(-maxPunctuationLength) :
+        textContent.slice(-1);
       break;
     }
 
@@ -61,7 +152,9 @@ function process_inlines(tokens, state, opts) {
 
     if (remove_break) {
       tokens[i].type    = 'text';
-      tokens[i].content = '';
+      tokens[i].content = should_insert_punctuation_space(last, trailing, next, punctuationSpace, punctuationConfig) ?
+        punctuationSpace :
+        '';
     }
   }
 }

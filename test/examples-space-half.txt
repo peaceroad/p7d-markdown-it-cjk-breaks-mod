@@ -1,0 +1,13 @@
+[Markdown]
+漢！
+字
+
+[HTML]
+<p>漢！ 字</p>
+
+[Markdown]
+テスト？
+漢字
+
+[HTML]
+<p>テスト？ 漢字</p>
