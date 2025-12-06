@@ -1,0 +1,34 @@
+{
+  "name": "@sup39/markdown-it-cjk-breaks",
+  "version": "1.2.0",
+  "description": "Suppress linebreaks between east asian characters",
+  "keywords": [
+    "markdown-it-plugin",
+    "markdown-it"
+  ],
+  "repository": "sup39/markdown-it-cjk-breaks.git",
+  "license": "MIT",
+  "scripts": {
+    "test": "make test",
+    "build": "browserify index.js -o dist/markdown-it-cjk-breaks.js; browserify index.js | uglifyjs > dist/markdown-it-cjk-breaks.min.js"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "dist/"
+  ],
+  "dependencies": {
+    "eastasianwidth": "~0.2.0"
+  },
+  "devDependencies": {
+    "browserify": "^16.2.3",
+    "coveralls": "^3.0.2",
+    "eslint": "^5.9.0",
+    "istanbul": "^0.4.5",
+    "lodash": "^4.16.2",
+    "markdown-it": "^8.0.0",
+    "markdown-it-testgen": "~0.1.0",
+    "mocha": "^5.2.0",
+    "uglify-js": "^3.4.9"
+  }
+}
