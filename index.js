@@ -1,6 +1,6 @@
-'use strict';
+import eastAsianWidthModule from 'eastasianwidth';
 
-var eastAsianWidth = require('eastasianwidth').eastAsianWidth;
+const { eastAsianWidth } = eastAsianWidthModule;
 
 
 function is_surrogate(c1, c2) {
@@ -67,7 +67,7 @@ function process_inlines(tokens, state, opts) {
 }
 
 
-module.exports = function cjk_breaks_plugin(md, opts) {
+export default function cjk_breaks_plugin(md, opts) {
   function cjk_breaks(state) {
     for (var blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
       if (state.tokens[blkIdx].type !== 'inline') continue;
@@ -76,4 +76,4 @@ module.exports = function cjk_breaks_plugin(md, opts) {
     }
   }
   md.core.ruler.push('cjk_breaks', cjk_breaks);
-};
+}
