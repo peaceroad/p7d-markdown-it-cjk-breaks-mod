@@ -1,0 +1,14 @@
+[Markdown]
+漢
+字
+
+[HTML]
+<p>漢字</p>
+
+[Markdown]
+ABC
+漢字
+
+[HTML]
+<p>ABC
+漢字</p>
