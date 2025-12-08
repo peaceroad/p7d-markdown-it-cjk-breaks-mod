@@ -16,9 +16,24 @@ const mdSpaceCustomTargets = mdit({ html: true }).use(cjkBreaks, {
   spaceAfterPunctuation: 'half',
   spaceAfterPunctuationTargets: ['??']
 });
-const mdStrongJa = mdit({ html: true }).use(strongJa).use(cjkBreaks, {
-  either: true,
-});
+const mdEitherNormalize = mdit({ html: true }).use(cjkBreaks, { either: true, normalizeSoftBreaks: true });
+const mdStrongJa = mdit({ html: true })
+  .use(strongJa)
+  .use(cjkBreaks, { either: true, normalizeSoftBreaks: true });
+const mdStrongJaSpace = mdit({ html: true })
+  .use(strongJa)
+  .use(cjkBreaks, {
+    either: true,
+    normalizeSoftBreaks: true,
+    spaceAfterPunctuation: 'half'
+  });
+const mdStrongJaSpaceLate = mdit({ html: true })
+  .use(cjkBreaks, {
+    either: true,
+    normalizeSoftBreaks: true,
+    spaceAfterPunctuation: 'half'
+  })
+  .use(strongJa);
 
 let __dirname = path.dirname(new URL(import.meta.url).pathname);
 const isWindows = process.platform === 'win32';
@@ -33,7 +48,10 @@ const testData = {
   spaceFull: __dirname + path.sep + 'examples-space-full.txt',
   spaceHalfEither: __dirname + path.sep + 'examples-space-half-either.txt',
   spaceCustom: __dirname + path.sep + 'examples-space-custom.txt',
-  strongJa: __dirname + path.sep + 'examples-strongJa.txt'
+  eitherNormalize: __dirname + path.sep + 'examples-eithere-and-normalizeSoftBreaks.txt',
+  strongJa: __dirname + path.sep + 'examples-strongJa-and-normalizeSoftBreaks.txt',
+  strongJaSpace: __dirname + path.sep + 'examples-strongJa-all-options.txt',
+  strongJaSpaceLate: __dirname + path.sep + 'examples-strongJa-all-options.txt'
 };
 
 const getTestData = (pat) => {
@@ -85,7 +103,10 @@ pass = runTest(mdSpaceHalf, testData.spaceHalf, pass);
 pass = runTest(mdSpaceFull, testData.spaceFull, pass);
 pass = runTest(mdSpaceHalfEither, testData.spaceHalfEither, pass);
 pass = runTest(mdSpaceCustomTargets, testData.spaceCustom, pass);
+pass = runTest(mdEitherNormalize, testData.eitherNormalize, pass);
 pass = runTest(mdStrongJa, testData.strongJa, pass);
+pass = runTest(mdStrongJaSpace, testData.strongJaSpace, pass);
+pass = runTest(mdStrongJaSpaceLate, testData.strongJaSpaceLate, pass);
 
 if (pass) {
   console.log('Passed all test.');

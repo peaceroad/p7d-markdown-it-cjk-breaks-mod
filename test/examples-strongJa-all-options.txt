@@ -1,0 +1,72 @@
+[Markdown]
+**漢！**
+A
+[HTML]
+<p><strong>漢！</strong> A</p>
+
+[Markdown]
+テスト？
+漢
+[HTML]
+<p>テスト？ 漢</p>
+
+[Markdown]
+**漢？！**
+ABC
+[HTML]
+<p><strong>漢？！</strong> ABC</p>
+
+[Markdown]
+**Hello!?**
+漢
+[HTML]
+<p>**Hello!?** 漢</p>
+
+[Markdown]
+**！？**
+テキスト
+[HTML]
+<p><strong>！？</strong> テキスト</p>
+
+[Markdown]
+**Hello!?**
+漢？
+終
+[HTML]
+<p>**Hello!?** 漢？ 終</p>
+
+[Markdown]
+**Hello.**
+漢
+[HTML]
+<p>**Hello.**漢</p>
+
+[Markdown]
+段落！？
+**強調**
+[HTML]
+<p>段落！？ <strong>強調</strong></p>
+
+[Markdown]
+**画像！**{#img}
+キャプション
+[HTML]
+<p><strong>画像！</strong>{#img}キャプション</p>
+
+[Markdown]
+**終わり？**
+<span class="note">メモ</span>
+[HTML]
+<p><strong>終わり？</strong> <span class="note">メモ</span></p>
+
+[Markdown]
+**！？**
+[foo]
+[HTML]
+<p><strong>！？</strong> [foo]</p>
+
+[Markdown]
+**漢！**
+![img](url)
+[HTML]
+<p><strong>漢！</strong> <img src="url" alt="img"></p>

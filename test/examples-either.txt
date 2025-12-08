@@ -37,7 +37,8 @@ a</p>
 **漢**
 字
 [HTML]
-<p><strong>漢</strong>字</p>
+<p><strong>漢</strong>
+字</p>
 
 [Markdown]
 **漢**
