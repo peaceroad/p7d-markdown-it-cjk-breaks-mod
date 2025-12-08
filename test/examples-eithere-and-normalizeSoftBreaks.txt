@@ -1,4 +1,11 @@
 [Markdown]
+**a**
+b
+[HTML]
+<p><strong>a</strong>
+b</p>
+
+[Markdown]
 **漢**
 字
 [HTML]
