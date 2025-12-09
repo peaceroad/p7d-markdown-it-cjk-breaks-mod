@@ -38,7 +38,7 @@ mdCustom.render('Hello??\nWorld');
 ```
 
 ### Softbreak normalization for other plugins
-Some plugins (notably `@peaceroad/markdown-it-strong-ja`) emit inline text nodes that still contain `\n`. Set `normalizeSoftBreaks: true` so those nodes are split back into softbreak tokens before the CJK break rules run, keeping behavior consistent regardless of plugin order.
+Even with stock markdown-it, emphasis markers can leave inline `text` tokens that still embed `\n`. When `normalizeSoftBreaks: true`, those tokens are split back into proper `softbreak` entries before CJK suppression runs, so a trailing `***漢***\n字` behaves the same way regardless of how markdown-it represented it internally.
 
 ```js
 // Normalize softbreaks emitted by other plugins first
@@ -50,7 +50,12 @@ mdStrongJaFriendly.render('**漢**\nb');
 // <p><strong>漢</strong>b</p>
 ```
 
+`@peaceroad/markdown-it-strong-ja` also emit newline-containing `text` nodes after their own rewrites. The same option keeps behavior consistent no matter which order you register plugins.
+
 ## sup39's additional features
+
+- [@sup39/markdown-it-cjk-breaks](https://npmjs.com/package/@sup39/markdown-it-cjk-breaks)
+
 Provide an optional option `either`(default: false, which works as original version) to determine whether allowing removing linebreak when either the character before **OR** after the linebreak is east asian character.
 
 ```js
@@ -73,9 +78,8 @@ ui
 ```
 
 ## Original
-[![Build Status](https://img.shields.io/travis/markdown-it/markdown-it-cjk-breaks/master.svg?style=flat)](https://travis-ci.org/markdown-it/markdown-it-cjk-breaks)
-[![NPM version](https://img.shields.io/npm/v/markdown-it-cjk-breaks.svg?style=flat)](https://www.npmjs.org/package/markdown-it-cjk-breaks)
-[![Coverage Status](https://coveralls.io/repos/markdown-it/markdown-it-cjk-breaks/badge.svg?branch=master&service=github)](https://coveralls.io/github/markdown-it/markdown-it-cjk-breaks?branch=master)
+
+- [markdown-it-cjk-breaks](https://github.com/markdown-it/markdown-it-cjk-breaks)
 
 > Plugin for [markdown-it](https://github.com/markdown-it/markdown-it) that suppresses linebreaks between east asian characters.
 
@@ -119,5 +123,6 @@ ui
 
 ## License
 
-[MIT](https://github.com/markdown-it/markdown-it-cjk-breaks/blob/master/LICENSE)
-[MIT](https://github.com/sup39/markdown-it-cjk-breaks/blob/master/LICENSE)
+- markdown-it/markdown-it-cjk-breaks: [MIT](https://github.com/markdown-it/markdown-it-cjk-breaks/blob/master/LICENSE)
+- @sup39/markdown-it-cjk-breaks: [MIT](https://www.npmjs.com/package/@sup39/markdown-it-cjk-breaks?activeTab=code)
+- @peaceroad/markdown-it-cjk-breaks-mod: [MIT](https://github.com/peaceroad/p7d-markdown-it-cjk-breaks-mod/blob/main/LICENSE

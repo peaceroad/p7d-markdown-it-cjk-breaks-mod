@@ -22,3 +22,15 @@ b
 字
 [HTML]
 <p><strong>a</strong>字</p>
+
+[Markdown]
+***漢***
+字
+[HTML]
+<p><em><strong>漢</strong></em>字</p>
+
+[Markdown]
+***漢***
+b
+[HTML]
+<p><em><strong>漢</strong></em>b</p>
