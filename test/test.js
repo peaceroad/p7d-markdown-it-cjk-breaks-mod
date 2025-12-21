@@ -16,6 +16,20 @@ const mdSpaceCustomTargets = mdit({ html: true }).use(cjkBreaks, {
   spaceAfterPunctuation: 'half',
   spaceAfterPunctuationTargets: ['??']
 });
+const mdSpaceHalfEitherAddTargets = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargetsAdd: ['??']
+});
+const mdSpaceHalfEitherRemoveTargets = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargetsRemove: ['.', ':']
+});
+const mdSpaceHalfDisabledTargets = mdit({ html: true }).use(cjkBreaks, {
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargets: []
+});
 const mdEitherNormalize = mdit({ html: true }).use(cjkBreaks, { either: true, normalizeSoftBreaks: true });
 const mdStrongJa = mdit({ html: true })
   .use(strongJa)
@@ -48,6 +62,9 @@ const testData = {
   spaceFull: __dirname + path.sep + 'examples-space-full.txt',
   spaceHalfEither: __dirname + path.sep + 'examples-space-half-either.txt',
   spaceCustom: __dirname + path.sep + 'examples-space-custom.txt',
+  spaceAddTargets: __dirname + path.sep + 'examples-space-add-targets.txt',
+  spaceRemoveTargets: __dirname + path.sep + 'examples-space-remove-targets.txt',
+  spaceDisabledTargets: __dirname + path.sep + 'examples-space-disabled-targets.txt',
   eitherNormalize: __dirname + path.sep + 'examples-eithere-and-normalizeSoftBreaks.txt',
   strongJa: __dirname + path.sep + 'examples-strongJa-and-normalizeSoftBreaks.txt',
   strongJaSpace: __dirname + path.sep + 'examples-strongJa-all-options.txt',
@@ -103,6 +120,9 @@ pass = runTest(mdSpaceHalf, testData.spaceHalf, pass);
 pass = runTest(mdSpaceFull, testData.spaceFull, pass);
 pass = runTest(mdSpaceHalfEither, testData.spaceHalfEither, pass);
 pass = runTest(mdSpaceCustomTargets, testData.spaceCustom, pass);
+pass = runTest(mdSpaceHalfEitherAddTargets, testData.spaceAddTargets, pass);
+pass = runTest(mdSpaceHalfEitherRemoveTargets, testData.spaceRemoveTargets, pass);
+pass = runTest(mdSpaceHalfDisabledTargets, testData.spaceDisabledTargets, pass);
 pass = runTest(mdEitherNormalize, testData.eitherNormalize, pass);
 pass = runTest(mdStrongJa, testData.strongJa, pass);
 pass = runTest(mdStrongJaSpace, testData.strongJaSpace, pass);

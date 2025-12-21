@@ -1,0 +1,13 @@
+[Markdown]
+Hello.
+漢
+
+[HTML]
+<p>Hello.漢</p>
+
+[Markdown]
+Hello:
+漢
+
+[HTML]
+<p>Hello:漢</p>

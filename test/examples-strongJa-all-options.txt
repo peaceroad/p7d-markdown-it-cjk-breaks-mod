@@ -20,7 +20,7 @@ ABC
 **Hello!?**
 漢
 [HTML]
-<p>**Hello!?** 漢</p>
+<p><strong>Hello!?</strong> 漢</p>
 
 [Markdown]
 **！？**
@@ -33,13 +33,13 @@ ABC
 漢？
 終
 [HTML]
-<p>**Hello!?** 漢？ 終</p>
+<p><strong>Hello!?</strong> 漢？ 終</p>
 
 [Markdown]
 **Hello.**
 漢
 [HTML]
-<p>**Hello.**漢</p>
+<p><strong>Hello.</strong> 漢</p>
 
 [Markdown]
 段落！？

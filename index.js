@@ -4,7 +4,7 @@ const { eastAsianWidth } = eastAsianWidthModule;
 const ASCII_PRINTABLE_MIN = 0x21;
 const ASCII_PRINTABLE_MAX = 0x7E;
 const IDEOGRAPHIC_SPACE = '\u3000';
-const DEFAULT_PUNCTUATION_TARGETS = ['！', '？', '⁉', '！？', '？！', '!?', '?!'];
+const DEFAULT_PUNCTUATION_TARGETS = ['！', '？', '⁉', '！？', '？！', '!?', '?!', '.', ':'];
 const DEFAULT_PUNCTUATION_CONFIG = create_punctuation_config(DEFAULT_PUNCTUATION_TARGETS);
 
 
@@ -48,14 +48,60 @@ function resolve_punctuation_space_option(opts) {
 
 
 function resolve_punctuation_targets(opts) {
-  if (!opts || !opts.spaceAfterPunctuationTargets) return DEFAULT_PUNCTUATION_CONFIG;
+  if (!opts) return DEFAULT_PUNCTUATION_CONFIG;
 
-  var customTargets = opts.spaceAfterPunctuationTargets;
-  if (typeof customTargets === 'string') customTargets = [ customTargets ];
-  if (!Array.isArray(customTargets) || customTargets.length === 0) return DEFAULT_PUNCTUATION_CONFIG;
+  var hasCustomTargets = Object.prototype.hasOwnProperty.call(opts, 'spaceAfterPunctuationTargets');
+  var baseTargets;
 
-  var config = create_punctuation_config(customTargets);
-  return config.sequences.size === 0 ? DEFAULT_PUNCTUATION_CONFIG : config;
+  if (!hasCustomTargets) {
+    baseTargets = DEFAULT_PUNCTUATION_TARGETS.slice();
+  } else {
+    var customTargets = opts.spaceAfterPunctuationTargets;
+    if (customTargets === null || customTargets === false) return null;
+    if (typeof customTargets === 'string') {
+      if (customTargets.length === 0) return null;
+      baseTargets = [ customTargets ];
+    } else if (Array.isArray(customTargets)) {
+      if (customTargets.length === 0) return null;
+      baseTargets = customTargets.slice();
+    } else {
+      baseTargets = DEFAULT_PUNCTUATION_TARGETS.slice();
+    }
+  }
+
+  var addTargets = opts.spaceAfterPunctuationTargetsAdd;
+  if (addTargets !== undefined) {
+    var addList = [];
+    if (typeof addTargets === 'string') {
+      if (addTargets.length > 0) addList = [ addTargets ];
+    } else if (Array.isArray(addTargets)) {
+      addList = addTargets;
+    }
+    if (addList.length > 0) {
+      baseTargets = baseTargets.concat(addList);
+    }
+  }
+
+  var removeTargets = opts.spaceAfterPunctuationTargetsRemove;
+  if (removeTargets !== undefined) {
+    var removeList = [];
+    if (typeof removeTargets === 'string') {
+      if (removeTargets.length > 0) removeList = [ removeTargets ];
+    } else if (Array.isArray(removeTargets)) {
+      removeList = removeTargets;
+    }
+    if (removeList.length > 0) {
+      var removeConfig = create_punctuation_config(removeList);
+      if (removeConfig.sequences.size > 0) {
+        baseTargets = baseTargets.filter(function (target) {
+          return !removeConfig.sequences.has(target);
+        });
+      }
+    }
+  }
+
+  var config = create_punctuation_config(baseTargets);
+  return config.sequences.size === 0 ? null : config;
 }
 
 
@@ -94,96 +140,153 @@ function get_cjk_width_class(ch) {
   return width === 'F' || width === 'W' || width === 'H' ? width : '';
 }
 
+function build_next_text_info(tokens) {
+  var nextTextIndex = new Array(tokens.length);
+  var nextSkippedEmpty = new Array(tokens.length);
+  var nextNonEmpty = -1;
+  var sawEmpty = false;
+
+  for (var idx = tokens.length - 1; idx >= 0; idx--) {
+    nextTextIndex[idx] = nextNonEmpty;
+    nextSkippedEmpty[idx] = sawEmpty;
+
+    var token = tokens[idx];
+    if (!token || token.type !== 'text') continue;
+
+    if (!token.content) {
+      sawEmpty = true;
+      continue;
+    }
+
+    nextNonEmpty = idx;
+    sawEmpty = false;
+  }
+
+  return {
+    nextTextIndex: nextTextIndex,
+    nextSkippedEmpty: nextSkippedEmpty
+  };
+}
+
 
 function process_inlines(tokens, state, ctx, inlineToken) {
-  var i, j, last, trailing, next, c1, c2, remove_break;
+  var i, last, trailing, next, c1, c2, remove_break;
   var either = ctx.either;
   var normalizeSoftBreaks = ctx.normalizeSoftBreaks;
   var punctuationSpace = ctx.punctuationSpace;
   var punctuationConfig = ctx.punctuationConfig;
   var maxPunctuationLength = ctx.maxPunctuationLength;
   var considerInlineBoundaries = ctx.considerInlineBoundaries;
+  var needsPunctuation = punctuationSpace && punctuationConfig && maxPunctuationLength > 0;
 
   if (normalizeSoftBreaks) normalize_text_tokens(tokens);
 
+  var nextInfo = build_next_text_info(tokens);
+  var nextTextIndex = nextInfo.nextTextIndex;
+  var nextSkippedEmpty = nextInfo.nextSkippedEmpty;
+
+  var widthCache = Object.create(null);
+  function get_cached_width_class(ch) {
+    if (!ch) return '';
+    var cached = widthCache[ch];
+    if (cached !== undefined) return cached;
+    var width = get_cjk_width_class(ch);
+    widthCache[ch] = width;
+    return width;
+  }
+
+  var lastTextContent = '';
+  var hasLastText = false;
+  var sawEmptySinceLast = false;
+
   for (i = 0; i < tokens.length; i++) {
-    var isSoftbreakToken = tokens[i].type === 'softbreak';
-    var isTextBreakToken = tokens[i].type === 'text' && tokens[i].content === '\n';
-    if (!isSoftbreakToken && !isTextBreakToken) continue;
+    var token = tokens[i];
+    var isSoftbreakToken = token.type === 'softbreak';
+    var isTextBreakToken = token.type === 'text' && token.content === '\n';
+    if (isSoftbreakToken || isTextBreakToken) {
+      // default last/next character to space
+      last = next = ' ';
+      trailing = '';
+      var trailingMatchesPunctuation = false;
 
-    // default last/next character to space
-    last = next = ' ';
-    trailing = '';
-    var trailingMatchesPunctuation = false;
+      var skippedEmptyBefore = sawEmptySinceLast;
+      var skippedEmptyAfter = nextSkippedEmpty[i];
 
-    var skippedEmptyBefore = false;
-    var skippedEmptyAfter = false;
-
-    for (j = i - 1; j >= 0; j--) {
-      if (tokens[j].type !== 'text') continue;
-
-      var textContent = tokens[j].content;
-      if (!textContent) {
-        skippedEmptyBefore = true;
-        continue;
-      }
-      c1 = textContent.charCodeAt(textContent.length - 2);
-      c2 = textContent.charCodeAt(textContent.length - 1);
-
-      last = textContent.slice(is_surrogate(c1, c2) ? -2 : -1);
-      trailing = maxPunctuationLength > 0 ?
-        textContent.slice(-maxPunctuationLength) :
-        textContent.slice(-1);
-      if (!trailingMatchesPunctuation && punctuationSpace && punctuationConfig && maxPunctuationLength > 0 && trailing) {
-        trailingMatchesPunctuation = matches_punctuation_sequence(trailing, punctuationConfig);
-      }
-      break;
-    }
-
-    for (j = i + 1; j < tokens.length; j++) {
-      if (tokens[j].type !== 'text') continue;
-
-      if (!tokens[j].content) {
-        skippedEmptyAfter = true;
-        continue;
+      if (hasLastText) {
+        c1 = lastTextContent.charCodeAt(lastTextContent.length - 2);
+        c2 = lastTextContent.charCodeAt(lastTextContent.length - 1);
+        last = lastTextContent.slice(is_surrogate(c1, c2) ? -2 : -1);
+        if (needsPunctuation) {
+          trailing = lastTextContent.slice(-maxPunctuationLength);
+          trailingMatchesPunctuation = matches_punctuation_sequence(trailing, punctuationConfig);
+        }
       }
 
-      c1 = tokens[j].content.charCodeAt(0);
-      c2 = tokens[j].content.charCodeAt(1);
-
-      next = tokens[j].content.slice(0, is_surrogate(c1, c2) ? 2 : 1);
-      break;
-    }
-
-    remove_break = false;
-
-    // remove newline if it's adjacent to ZWSP
-    if (last === '\u200b' || next === '\u200b') remove_break = true;
-
-    var lastWidthClass = get_cjk_width_class(last);
-    var nextWidthClass = get_cjk_width_class(next);
-
-    // remove newline if both characters AND/OR fullwidth (F), wide (W) or
-    // halfwidth (H), but not Hangul
-    var tLast = lastWidthClass !== '';
-    var tNext = nextWidthClass !== '';
-
-    if (considerInlineBoundaries && (skippedEmptyBefore || skippedEmptyAfter) && tLast && tNext) {
-      tLast = false;
-      tNext = false;
-    }
-    if (either ? tLast || tNext : tLast && tNext) {
-      if (!is_hangul(last) && !is_hangul(next)) remove_break = true;
-    }
-
-    if (remove_break) {
-      var insertPunctuationSpace = false;
-      var nextIsFullwidthOrWide = nextWidthClass === 'F' || nextWidthClass === 'W';
-      if (punctuationSpace && punctuationConfig && trailingMatchesPunctuation && last && next && next !== '\u200b') {
-        if (is_printable_ascii(next) || nextIsFullwidthOrWide) insertPunctuationSpace = true;
+      var nextIdx = nextTextIndex[i];
+      if (nextIdx !== -1) {
+        var nextContent = tokens[nextIdx].content || '';
+        if (nextContent) {
+          c1 = nextContent.charCodeAt(0);
+          c2 = nextContent.charCodeAt(1);
+          next = nextContent.slice(0, is_surrogate(c1, c2) ? 2 : 1);
+        }
       }
-      tokens[i].type    = 'text';
-      tokens[i].content = insertPunctuationSpace ? punctuationSpace : '';
+
+      remove_break = false;
+
+      // remove newline if it's adjacent to ZWSP
+      if (last === '\u200b' || next === '\u200b') remove_break = true;
+
+      var lastWidthClass = '';
+      var nextWidthClass = '';
+
+      // remove newline if both characters AND/OR fullwidth (F), wide (W) or
+      // halfwidth (H), but not Hangul
+      var tLast = false;
+      var tNext = false;
+
+      var needsWidthForRemoval = !remove_break;
+      var needsWidthForPunctuation = punctuationSpace && trailingMatchesPunctuation && last && next && next !== '\u200b';
+
+      if (needsWidthForRemoval || needsWidthForPunctuation) {
+        if (needsWidthForRemoval) {
+          lastWidthClass = get_cached_width_class(last);
+        }
+        nextWidthClass = get_cached_width_class(next);
+
+        if (needsWidthForRemoval) {
+          tLast = lastWidthClass !== '';
+          tNext = nextWidthClass !== '';
+
+          if (considerInlineBoundaries && (skippedEmptyBefore || skippedEmptyAfter) && tLast && tNext) {
+            tLast = false;
+            tNext = false;
+          }
+          if (either ? tLast || tNext : tLast && tNext) {
+            if (!is_hangul(last) && !is_hangul(next)) remove_break = true;
+          }
+        }
+      }
+
+      if (remove_break) {
+        var insertPunctuationSpace = false;
+        if (punctuationSpace && punctuationConfig && trailingMatchesPunctuation && last && next && next !== '\u200b') {
+          var nextIsFullwidthOrWide = nextWidthClass === 'F' || nextWidthClass === 'W';
+          if (is_printable_ascii(next) || nextIsFullwidthOrWide) insertPunctuationSpace = true;
+        }
+        token.type    = 'text';
+        token.content = insertPunctuationSpace ? punctuationSpace : '';
+      }
+    }
+
+    if (token.type === 'text') {
+      if (!token.content) {
+        sawEmptySinceLast = true;
+      } else {
+        lastTextContent = token.content;
+        hasLastText = true;
+        sawEmptySinceLast = false;
+      }
     }
   }
 
@@ -194,16 +297,29 @@ function process_inlines(tokens, state, ctx, inlineToken) {
 
 
 function normalize_text_tokens(tokens) {
+  var normalized = null;
+
   for (var idx = 0; idx < tokens.length; idx++) {
     var token = tokens[idx];
-    if (token.type !== 'text') continue;
-    if (!token.content || token.content.indexOf('\n') === -1) continue;
+    if (token.type !== 'text' || !token.content || token.content.indexOf('\n') === -1) {
+      if (normalized) normalized.push(token);
+      continue;
+    }
+
+    if (!normalized) {
+      normalized = tokens.slice(0, idx);
+    }
 
     var replacement = split_text_token(token);
-    tokens.splice(idx, 1, replacement[0]);
-    if (replacement.length > 1) {
-      Array.prototype.splice.apply(tokens, [idx + 1, 0].concat(replacement.slice(1)));
-      idx += replacement.length - 1;
+    for (var r = 0; r < replacement.length; r++) {
+      normalized.push(replacement[r]);
+    }
+  }
+
+  if (normalized) {
+    tokens.length = 0;
+    for (var j = 0; j < normalized.length; j++) {
+      tokens.push(normalized[j]);
     }
   }
 }
