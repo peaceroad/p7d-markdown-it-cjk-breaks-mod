@@ -4,7 +4,7 @@
 
 ### Punctuation spacing options
 
-Fine-tune the trigger list with `spaceAfterPunctuationTargets`. Provide either a single string or an array and every exact match becomes eligible for automatic spacing. Defaults remain `['！', '？', '⁉', '！？', '？！', '!?', '?!']`.
+Fine-tune the trigger list with `spaceAfterPunctuationTargets`. Provide either a single string or an array and every exact match becomes eligible for automatic spacing; this option replaces the defaults. Defaults remain `['！', '？', '⁉', '！？', '？！', '!?', '?!', '.', ':']`. To disable punctuation spacing while still setting `spaceAfterPunctuation`, pass `spaceAfterPunctuationTargets: []` (or `null`/`false`). Use `spaceAfterPunctuationTargetsAdd` to append triggers and `spaceAfterPunctuationTargetsRemove` to drop items from the resolved list.
 
 Use `spaceAfterPunctuation` to inject a space every time this plugin suppresses a line break after punctuation. Accepts `'half'` for ASCII space, `'full'` for an ideographic space, or any custom string via a literal value.
 

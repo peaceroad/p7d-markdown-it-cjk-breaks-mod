@@ -5,16 +5,16 @@ This repository powers the `markdown-it-cjk-breaks` plugin. The notes below focu
 ## Core processing pipeline (`index.js`)
 1. **Option resolution**
    - `resolve_punctuation_space_option` normalizes `spaceAfterPunctuation` (`'half'`, `'full'`, or literal strings). When unset, spacing logic is skipped entirely.
-   - `resolve_punctuation_targets` builds a deduplicated lookup set and captures the longest target length for efficient suffix checks.
-   - Context (`ctx`) stores derived booleans such as `either`, `normalizeSoftBreaks`, and `considerInlineBoundaries`, plus cached punctuation data.
+   - `resolve_punctuation_targets` returns a deduplicated lookup set (tracking the longest target length) based on defaults or `spaceAfterPunctuationTargets` (which replaces defaults), then applies `spaceAfterPunctuationTargetsAdd` and `spaceAfterPunctuationTargetsRemove`; it returns `null` when targets are explicitly disabled (`[]`, `null`, or `false`). Defaults include `['！', '？', '⁉', '！？', '？！', '!?', '?!', '.', ':']` when not overridden.
+   - Context (`ctx`) stores derived booleans such as `either`, `normalizeSoftBreaks`, and `considerInlineBoundaries`, plus cached punctuation data (or `null` when disabled).
 2. **Rule registration**
    - `cjk_breaks_plugin` guards against missing `md.core.ruler` and registers a single core rule named `cjk_breaks`. All heavy lifting happens during this pass over inline tokens.
 3. **Inline preprocessing**
-   - For each inline token list, `process_inlines` optionally calls `normalize_text_tokens`, splitting newline-containing text nodes back into `softbreak` tokens so downstream logic has consistent boundaries.
+   - For each inline token list, `process_inlines` optionally calls `normalize_text_tokens`, rebuilding token lists to split newline-containing text nodes back into `softbreak` tokens so downstream logic has consistent boundaries.
    - Utility helpers (`split_text_token`, `clone_text_token`, `create_softbreak_token`) preserve token metadata (levels, attrs, meta) when rewriting nodes.
 4. **Line-break suppression**
-   - The main loop inspects each `softbreak` or newline-only `text` token and searches left/right for the nearest non-empty `text` neighbors.
-   - `get_cjk_width_class` caches East Asian width classes (`F/W/H`) while short-circuiting ASCII ranges, reducing `eastAsianWidth` calls.
+   - The main loop inspects each `softbreak` or newline-only `text` token using a running last-text snapshot plus `build_next_text_info` (precomputed next non-empty text indices and skipped-empty flags).
+   - `get_cjk_width_class` short-circuits ASCII ranges, while `process_inlines` caches width classes per pass to reduce `eastAsianWidth` calls.
    - Depending on `either`, removal triggers when both or either side has width class `F/W/H` and neither character is Hangul (`is_hangul`). Zero-width spaces always collapse the break.
    - Inline-boundary gaps (caused by removed empty text nodes) can be respected by toggling `considerInlineBoundaries`.
 5. **Punctuation spacing injection**
