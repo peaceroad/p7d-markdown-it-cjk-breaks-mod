@@ -125,4 +125,4 @@ ui
 
 - markdown-it/markdown-it-cjk-breaks: [MIT](https://github.com/markdown-it/markdown-it-cjk-breaks/blob/master/LICENSE)
 - @sup39/markdown-it-cjk-breaks: [MIT](https://www.npmjs.com/package/@sup39/markdown-it-cjk-breaks?activeTab=code)
-- @peaceroad/markdown-it-cjk-breaks-mod: [MIT](https://github.com/peaceroad/p7d-markdown-it-cjk-breaks-mod/blob/main/LICENSE
+- @peaceroad/markdown-it-cjk-breaks-mod: [MIT](https://github.com/peaceroad/p7d-markdown-it-cjk-breaks-mod/blob/main/LICENSE)
