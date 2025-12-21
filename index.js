@@ -6,6 +6,13 @@ const ASCII_PRINTABLE_MAX = 0x7E;
 const IDEOGRAPHIC_SPACE = '\u3000';
 const DEFAULT_PUNCTUATION_TARGETS = ['！', '？', '⁉', '！？', '？！', '!?', '?!', '.', ':'];
 const DEFAULT_PUNCTUATION_CONFIG = create_punctuation_config(DEFAULT_PUNCTUATION_TARGETS);
+/* eslint-disable max-len */
+// require('unicode-10.0.0/Script/Hangul/regex')
+const HANGUL_RE = /[\u1100-\u11FF\u302E\u302F\u3131-\u318E\u3200-\u321E\u3260-\u327E\uA960-\uA97C\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uFFA0-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]/;
+/* eslint-enable max-len */
+const WHITESPACE_RE = /\s/;
+const WHITESPACE_LEAD_RE = /^\s/;
+const WHITESPACE_TRAIL_RE = /\s$/;
 
 
 function is_surrogate(c1, c2) {
@@ -14,10 +21,7 @@ function is_surrogate(c1, c2) {
 
 
 function is_hangul(c) {
-  // require('unicode-10.0.0/Script/Hangul/regex')
-  /* eslint-disable max-len */
-  return /[\u1100-\u11FF\u302E\u302F\u3131-\u318E\u3200-\u321E\u3260-\u327E\uA960-\uA97C\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uFFA0-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]/.test(c);
-  /* eslint-enable max-len */
+  return HANGUL_RE.test(c);
 }
 
 
@@ -140,15 +144,15 @@ function get_cjk_width_class(ch) {
   return width === 'F' || width === 'W' || width === 'H' ? width : '';
 }
 
-function build_next_text_info(tokens) {
+function build_next_text_info(tokens, trackSkippedEmpty) {
   var nextTextIndex = new Array(tokens.length);
-  var nextSkippedEmpty = new Array(tokens.length);
+  var nextSkippedEmpty = trackSkippedEmpty ? new Array(tokens.length) : null;
   var nextNonEmpty = -1;
   var sawEmpty = false;
 
   for (var idx = tokens.length - 1; idx >= 0; idx--) {
     nextTextIndex[idx] = nextNonEmpty;
-    nextSkippedEmpty[idx] = sawEmpty;
+    if (trackSkippedEmpty) nextSkippedEmpty[idx] = sawEmpty;
 
     var token = tokens[idx];
     if (!token || token.type !== 'text') continue;
@@ -181,7 +185,7 @@ function process_inlines(tokens, state, ctx, inlineToken) {
 
   if (normalizeSoftBreaks) normalize_text_tokens(tokens);
 
-  var nextInfo = build_next_text_info(tokens);
+  var nextInfo = build_next_text_info(tokens, considerInlineBoundaries);
   var nextTextIndex = nextInfo.nextTextIndex;
   var nextSkippedEmpty = nextInfo.nextSkippedEmpty;
 
@@ -209,8 +213,12 @@ function process_inlines(tokens, state, ctx, inlineToken) {
       trailing = '';
       var trailingMatchesPunctuation = false;
 
-      var skippedEmptyBefore = sawEmptySinceLast;
-      var skippedEmptyAfter = nextSkippedEmpty[i];
+      var skippedEmptyBefore = false;
+      var skippedEmptyAfter = false;
+      if (considerInlineBoundaries) {
+        skippedEmptyBefore = sawEmptySinceLast;
+        skippedEmptyAfter = nextSkippedEmpty ? nextSkippedEmpty[i] : false;
+      }
 
       if (hasLastText) {
         c1 = lastTextContent.charCodeAt(lastTextContent.length - 2);
@@ -233,44 +241,39 @@ function process_inlines(tokens, state, ctx, inlineToken) {
       }
 
       remove_break = false;
+      var nextWidthClass = '';
+      var nextWidthComputed = false;
 
       // remove newline if it's adjacent to ZWSP
-      if (last === '\u200b' || next === '\u200b') remove_break = true;
-
-      var lastWidthClass = '';
-      var nextWidthClass = '';
-
-      // remove newline if both characters AND/OR fullwidth (F), wide (W) or
-      // halfwidth (H), but not Hangul
-      var tLast = false;
-      var tNext = false;
-
-      var needsWidthForRemoval = !remove_break;
-      var needsWidthForPunctuation = punctuationSpace && trailingMatchesPunctuation && last && next && next !== '\u200b';
-
-      if (needsWidthForRemoval || needsWidthForPunctuation) {
-        if (needsWidthForRemoval) {
-          lastWidthClass = get_cached_width_class(last);
+      if (last === '\u200b' || next === '\u200b') {
+        remove_break = true;
+      } else {
+        // remove newline if both characters AND/OR fullwidth (F), wide (W) or
+        // halfwidth (H), but not Hangul
+        var lastWidthClass = get_cached_width_class(last);
+        if (either || lastWidthClass) {
+          nextWidthClass = get_cached_width_class(next);
+          nextWidthComputed = true;
         }
-        nextWidthClass = get_cached_width_class(next);
 
-        if (needsWidthForRemoval) {
-          tLast = lastWidthClass !== '';
-          tNext = nextWidthClass !== '';
+        var tLast = lastWidthClass !== '';
+        var tNext = nextWidthComputed ? nextWidthClass !== '' : false;
 
-          if (considerInlineBoundaries && (skippedEmptyBefore || skippedEmptyAfter) && tLast && tNext) {
-            tLast = false;
-            tNext = false;
-          }
-          if (either ? tLast || tNext : tLast && tNext) {
-            if (!is_hangul(last) && !is_hangul(next)) remove_break = true;
-          }
+        if (considerInlineBoundaries && (skippedEmptyBefore || skippedEmptyAfter) && tLast && tNext) {
+          tLast = false;
+          tNext = false;
+        }
+        if (either ? tLast || tNext : tLast && tNext) {
+          if (!is_hangul(last) && !is_hangul(next)) remove_break = true;
         }
       }
 
       if (remove_break) {
         var insertPunctuationSpace = false;
-        if (punctuationSpace && punctuationConfig && trailingMatchesPunctuation && last && next && next !== '\u200b') {
+        if (needsPunctuation && trailingMatchesPunctuation && last && next && next !== '\u200b') {
+          if (!nextWidthComputed) {
+            nextWidthClass = get_cached_width_class(next);
+          }
           var nextIsFullwidthOrWide = nextWidthClass === 'F' || nextWidthClass === 'W';
           if (is_printable_ascii(next) || nextIsFullwidthOrWide) insertPunctuationSpace = true;
         }
@@ -290,7 +293,7 @@ function process_inlines(tokens, state, ctx, inlineToken) {
     }
   }
 
-  if (punctuationSpace && punctuationConfig) {
+  if (needsPunctuation) {
     apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace, punctuationConfig);
   }
 }
@@ -397,11 +400,11 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
       current.content.slice(-punctuationConfig.maxLength) :
       current.content.slice(-1);
     if (!matches_punctuation_sequence(trailing, punctuationConfig)) continue;
-    if (/\s$/.test(current.content)) continue;
+    if (WHITESPACE_TRAIL_RE.test(current.content)) continue;
 
     var nextInfo = find_next_visible_token(tokens, idx + 1);
     if (!nextInfo) continue;
-    if (nextInfo.token.type === 'text' && /^\s/.test(nextInfo.token.content || '')) continue;
+    if (nextInfo.token.type === 'text' && WHITESPACE_LEAD_RE.test(nextInfo.token.content || '')) continue;
 
     if (!raw_boundary_includes_newline(inlineToken.content, tokens, idx, nextInfo.index, nextInfo.fragment, rawSearchState)) {
       continue;
@@ -501,7 +504,7 @@ function apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, 
       var splitIndex = cumulativeLength + leftRaw.length + offsetDelta;
       if (splitIndex >= 0 && splitIndex <= updatedContent.length) {
         var existingChar = updatedContent.charAt(splitIndex);
-        if (existingChar && /\s/.test(existingChar)) {
+        if (existingChar && WHITESPACE_RE.test(existingChar)) {
           // already has whitespace at this boundary
           cumulativeLength += leftRaw.length;
           continue;
@@ -528,7 +531,7 @@ function extract_visible_tail(raw, maxLength) {
     var charLen = code > 0xFFFF ? 2 : 1;
     var ch = raw.slice(pos - charLen, pos);
     pos -= charLen;
-    if (/\s/.test(ch)) continue;
+    if (WHITESPACE_RE.test(ch)) continue;
     if (is_markup_closer_char(ch)) continue;
     result = ch + result;
   }
@@ -543,7 +546,7 @@ function extract_visible_head(raw) {
     var charLen = code > 0xFFFF ? 2 : 1;
     var ch = raw.slice(pos, pos + charLen);
     pos += charLen;
-    if (/\s/.test(ch)) continue;
+    if (WHITESPACE_RE.test(ch)) continue;
     return ch;
   }
   return '';
