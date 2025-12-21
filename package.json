@@ -1,10 +1,14 @@
 {
   "name": "@peaceroad/markdown-it-cjk-breaks-mod",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Suppress linebreaks between east asian (Especially Japanese) characters",
-  "repository": "https://github.com/peaceroad/markdown-it-cjk-breaks-mod.git",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peaceroad/p7d-markdown-it-cjk-breaks-mod.git"
+  },
   "license": "MIT",
+  "author": "peaceroad <peaceroad@gmail.com>",
   "scripts": {
     "test": "node test/test.js"
   },
@@ -18,7 +22,7 @@
     "eastasianwidth": "^0.3.0"
   },
   "devDependencies": {
-    "@peaceroad/markdown-it-strong-ja": "^0.5.3",
+    "@peaceroad/markdown-it-strong-ja": "^0.5.5",
     "markdown-it": "^14.1.0"
   }
 }
