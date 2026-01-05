@@ -55,10 +55,15 @@ function resolve_punctuation_targets(opts) {
   if (!opts) return DEFAULT_PUNCTUATION_CONFIG;
 
   var hasCustomTargets = Object.prototype.hasOwnProperty.call(opts, 'spaceAfterPunctuationTargets');
+  var addTargets = opts.spaceAfterPunctuationTargetsAdd;
+  var removeTargets = opts.spaceAfterPunctuationTargetsRemove;
+  if (!hasCustomTargets && addTargets === undefined && removeTargets === undefined) {
+    return DEFAULT_PUNCTUATION_CONFIG;
+  }
   var baseTargets;
 
   if (!hasCustomTargets) {
-    baseTargets = DEFAULT_PUNCTUATION_TARGETS.slice();
+    baseTargets = DEFAULT_PUNCTUATION_TARGETS;
   } else {
     var customTargets = opts.spaceAfterPunctuationTargets;
     if (customTargets === null || customTargets === false) return null;
@@ -67,13 +72,12 @@ function resolve_punctuation_targets(opts) {
       baseTargets = [ customTargets ];
     } else if (Array.isArray(customTargets)) {
       if (customTargets.length === 0) return null;
-      baseTargets = customTargets.slice();
+      baseTargets = customTargets;
     } else {
-      baseTargets = DEFAULT_PUNCTUATION_TARGETS.slice();
+      baseTargets = DEFAULT_PUNCTUATION_TARGETS;
     }
   }
 
-  var addTargets = opts.spaceAfterPunctuationTargetsAdd;
   if (addTargets !== undefined) {
     var addList = [];
     if (typeof addTargets === 'string') {
@@ -86,7 +90,6 @@ function resolve_punctuation_targets(opts) {
     }
   }
 
-  var removeTargets = opts.spaceAfterPunctuationTargetsRemove;
   if (removeTargets !== undefined) {
     var removeList = [];
     if (typeof removeTargets === 'string') {
@@ -174,7 +177,7 @@ function build_next_text_info(tokens, trackSkippedEmpty) {
 
 
 function process_inlines(tokens, state, ctx, inlineToken) {
-  var i, last, trailing, next, c1, c2, remove_break;
+  var i, last, next, c1, c2, remove_break;
   var either = ctx.either;
   var normalizeSoftBreaks = ctx.normalizeSoftBreaks;
   var punctuationSpace = ctx.punctuationSpace;
@@ -183,15 +186,27 @@ function process_inlines(tokens, state, ctx, inlineToken) {
   var considerInlineBoundaries = ctx.considerInlineBoundaries;
   var needsPunctuation = punctuationSpace && punctuationConfig && maxPunctuationLength > 0;
 
+  if (!tokens || tokens.length === 0) return;
   if (normalizeSoftBreaks) normalize_text_tokens(tokens);
 
-  var nextInfo = build_next_text_info(tokens, considerInlineBoundaries);
-  var nextTextIndex = nextInfo.nextTextIndex;
-  var nextSkippedEmpty = nextInfo.nextSkippedEmpty;
-
-  var widthCache = Object.create(null);
+  var nextTextIndex = null;
+  var nextSkippedEmpty = null;
+  var widthCache = null;
   function get_cached_width_class(ch) {
     if (!ch) return '';
+    if (!widthCache) {
+      var firstWidth = get_cjk_width_class(ch);
+      if (firstWidth === '') {
+        var codePoint = ch.codePointAt(0);
+        if (codePoint !== undefined && codePoint <= ASCII_PRINTABLE_MAX) return '';
+        widthCache = Object.create(null);
+        widthCache[ch] = '';
+        return '';
+      }
+      widthCache = Object.create(null);
+      widthCache[ch] = firstWidth;
+      return firstWidth;
+    }
     var cached = widthCache[ch];
     if (cached !== undefined) return cached;
     var width = get_cjk_width_class(ch);
@@ -208,11 +223,13 @@ function process_inlines(tokens, state, ctx, inlineToken) {
     var isSoftbreakToken = token.type === 'softbreak';
     var isTextBreakToken = token.type === 'text' && token.content === '\n';
     if (isSoftbreakToken || isTextBreakToken) {
+      if (!nextTextIndex) {
+        var nextInfo = build_next_text_info(tokens, considerInlineBoundaries);
+        nextTextIndex = nextInfo.nextTextIndex;
+        nextSkippedEmpty = nextInfo.nextSkippedEmpty;
+      }
       // default last/next character to space
       last = next = ' ';
-      trailing = '';
-      var trailingMatchesPunctuation = false;
-
       var skippedEmptyBefore = false;
       var skippedEmptyAfter = false;
       if (considerInlineBoundaries) {
@@ -224,10 +241,6 @@ function process_inlines(tokens, state, ctx, inlineToken) {
         c1 = lastTextContent.charCodeAt(lastTextContent.length - 2);
         c2 = lastTextContent.charCodeAt(lastTextContent.length - 1);
         last = lastTextContent.slice(is_surrogate(c1, c2) ? -2 : -1);
-        if (needsPunctuation) {
-          trailing = lastTextContent.slice(-maxPunctuationLength);
-          trailingMatchesPunctuation = matches_punctuation_sequence(trailing, punctuationConfig);
-        }
       }
 
       var nextIdx = nextTextIndex[i];
@@ -270,12 +283,15 @@ function process_inlines(tokens, state, ctx, inlineToken) {
 
       if (remove_break) {
         var insertPunctuationSpace = false;
-        if (needsPunctuation && trailingMatchesPunctuation && last && next && next !== '\u200b') {
-          if (!nextWidthComputed) {
-            nextWidthClass = get_cached_width_class(next);
+        if (needsPunctuation && last && next && next !== '\u200b') {
+          var trailing = hasLastText ? lastTextContent.slice(-maxPunctuationLength) : '';
+          if (matches_punctuation_sequence(trailing, punctuationConfig)) {
+            if (!nextWidthComputed) {
+              nextWidthClass = get_cached_width_class(next);
+            }
+            var nextIsFullwidthOrWide = nextWidthClass === 'F' || nextWidthClass === 'W';
+            if (nextIsFullwidthOrWide || is_printable_ascii(next)) insertPunctuationSpace = true;
           }
-          var nextIsFullwidthOrWide = nextWidthClass === 'F' || nextWidthClass === 'W';
-          if (is_printable_ascii(next) || nextIsFullwidthOrWide) insertPunctuationSpace = true;
         }
         token.type    = 'text';
         token.content = insertPunctuationSpace ? punctuationSpace : '';
@@ -284,11 +300,11 @@ function process_inlines(tokens, state, ctx, inlineToken) {
 
     if (token.type === 'text') {
       if (!token.content) {
-        sawEmptySinceLast = true;
+        if (considerInlineBoundaries) sawEmptySinceLast = true;
       } else {
         lastTextContent = token.content;
         hasLastText = true;
-        sawEmptySinceLast = false;
+        if (considerInlineBoundaries) sawEmptySinceLast = false;
       }
     }
   }
@@ -389,6 +405,8 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
   if (!inlineToken || !inlineToken.content) return;
   if (inlineToken.content.indexOf('\n') === -1) return;
   if (!tokens || tokens.length === 0) return;
+  var maxPunctuationLength = punctuationConfig.maxLength;
+  if (maxPunctuationLength <= 0) return;
 
   var rawSearchState = { pos: 0 };
 
@@ -396,9 +414,7 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     var current = tokens[idx];
     if (!current || current.type !== 'text' || !current.content) continue;
 
-    var trailing = punctuationConfig.maxLength > 0 ?
-      current.content.slice(-punctuationConfig.maxLength) :
-      current.content.slice(-1);
+    var trailing = current.content.slice(-maxPunctuationLength);
     if (!matches_punctuation_sequence(trailing, punctuationConfig)) continue;
     if (WHITESPACE_TRAIL_RE.test(current.content)) continue;
 
@@ -414,7 +430,9 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     idx = nextInfo.index;
   }
 
-  apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, punctuationConfig);
+  if (tokens.length === 1) {
+    apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, punctuationConfig);
+  }
 }
 
 
@@ -484,6 +502,8 @@ function apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, 
   if (inlineToken.content.indexOf('\n') === -1) return;
   var token = tokens[0];
   if (!token || token.type !== 'text' || !token.content) return;
+  var maxPunctuationLength = punctuationConfig.maxLength;
+  if (maxPunctuationLength <= 0) return;
 
   var segments = inlineToken.content.split('\n');
   if (segments.length < 2) return;
@@ -493,7 +513,7 @@ function apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, 
   for (var segIdx = 0; segIdx < segments.length - 1; segIdx++) {
     var leftRaw = segments[segIdx];
     var rightRaw = segments[segIdx + 1];
-    var tail = extract_visible_tail(leftRaw, punctuationConfig.maxLength);
+    var tail = extract_visible_tail(leftRaw, maxPunctuationLength);
     var nextChar = extract_visible_head(rightRaw);
     var shouldInsert = tail &&
       matches_punctuation_sequence(tail, punctuationConfig) &&
