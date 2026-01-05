@@ -1,6 +1,6 @@
 {
   "name": "@peaceroad/markdown-it-cjk-breaks-mod",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
   "description": "Suppress linebreaks between east asian (Especially Japanese) characters",
   "repository": {
