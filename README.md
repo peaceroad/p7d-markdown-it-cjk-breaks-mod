@@ -4,9 +4,11 @@
 
 ### Punctuation spacing options
 
-Fine-tune the trigger list with `spaceAfterPunctuationTargets`. Provide either a single string or an array and every exact match becomes eligible for automatic spacing; this option replaces the defaults. Defaults remain `['！', '？', '⁉', '！？', '？！', '!?', '?!', '.', ':']`. To disable punctuation spacing while still setting `spaceAfterPunctuation`, pass `spaceAfterPunctuationTargets: []` (or `null`/`false`). Use `spaceAfterPunctuationTargetsAdd` to append triggers and `spaceAfterPunctuationTargetsRemove` to drop items from the resolved list.
+`spaceAfterPunctuation` inserts spacing only when this plugin suppresses a line break after punctuation. The second-pass matcher also covers inline markup starts (inline code, links/autolinks, images, inline HTML) as long as the raw source contains a visible newline boundary; if a `softbreak` remains, no spacing is injected.
 
-Use `spaceAfterPunctuation` to inject a space every time this plugin suppresses a line break after punctuation. Accepts `'half'` for ASCII space, `'full'` for an ideographic space, or any custom string via a literal value.
+`spaceAfterPunctuationTargets` lets you replace the default trigger list with a custom string or array. Defaults are `['！', '？', '⁉', '！？', '？！', '!?', '?!', '.', ':']`. To disable punctuation spacing while still setting `spaceAfterPunctuation`, pass `spaceAfterPunctuationTargets: []` (or `null`/`false`). Use `spaceAfterPunctuationTargetsAdd` to append triggers and `spaceAfterPunctuationTargetsRemove` to drop items from the resolved list.
+
+`spaceAfterPunctuation` accepts `'half'` for ASCII space, `'full'` for an ideographic space, or any custom string via a literal value. Raw matching is strict, so escapes or entities (e.g. `&amp;`) right before the newline can prevent a match and skip spacing (safe-fail behavior).
 
 ```js
 import MarkdownIt from 'markdown-it';
@@ -28,7 +30,13 @@ const mdHalf = MarkdownIt({ html: true }).use(cjkBreaks, {
 mdHalf.render('こんにちは！\nWorld');
 // <p>こんにちは！ World</p>
 
-// Custom punctuation triggers
+// Inline code and links are supported when a raw newline is present
+mdHalf.render('漢！\n`code`');
+// <p>漢！ <code>code</code></p>
+mdHalf.render('漢！\n[link](url)');
+// <p>漢！ <a href="url">link</a></p>
+
+// Custom punctuation triggers (replaces defaults)
 const mdCustom = MarkdownIt({ html: true }).use(cjkBreaks, {
   spaceAfterPunctuation: 'half',
   spaceAfterPunctuationTargets: ['??']

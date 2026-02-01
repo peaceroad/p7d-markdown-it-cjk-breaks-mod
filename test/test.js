@@ -6,6 +6,8 @@ import strongJa from '@peaceroad/markdown-it-strong-ja';
 
 import cjkBreaks from '../index.js';
 
+const mdHtmlFalse = mdit({ html: false }).use(cjkBreaks);
+const mdHtmlFalseEither = mdit({ html: false }).use(cjkBreaks, { either: true });
 const md = mdit({ html: true }).use(cjkBreaks);
 const mdEither = mdit({ html: true }).use(cjkBreaks, { either: true });
 const mdSpaceHalf = mdit({ html: true }).use(cjkBreaks, { spaceAfterPunctuation: 'half' });
@@ -57,6 +59,8 @@ if (isWindows) {
 
 const testData = {
   standard: __dirname + path.sep + 'examples-standard.txt',
+  htmlFalse: __dirname + path.sep + 'html-false' + path.sep + 'examples-html-false.txt',
+  htmlFalseEither: __dirname + path.sep + 'html-false' + path.sep + 'examples-html-false-either.txt',
   either: __dirname + path.sep + 'examples-either.txt',
   spaceHalf: __dirname + path.sep + 'examples-space-half.txt',
   spaceFull: __dirname + path.sep + 'examples-space-full.txt',
@@ -115,6 +119,8 @@ const runTest = (processor, pat, pass) => {
 
 let pass = true;
 pass = runTest(md, testData.standard, pass);
+pass = runTest(mdHtmlFalse, testData.htmlFalse, pass);
+pass = runTest(mdHtmlFalseEither, testData.htmlFalseEither, pass);
 pass = runTest(mdEither, testData.either, pass);
 pass = runTest(mdSpaceHalf, testData.spaceHalf, pass);
 pass = runTest(mdSpaceFull, testData.spaceFull, pass);

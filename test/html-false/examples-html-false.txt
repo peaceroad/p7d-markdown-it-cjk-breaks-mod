@@ -1,0 +1,30 @@
+[Markdown]
+漢
+字
+[HTML]
+<p>漢字</p>
+
+[Markdown]
+漢
+<em>字</em>
+[HTML]
+<p>漢
+&lt;em&gt;字&lt;/em&gt;</p>
+
+[Markdown]
+あ<br>
+い
+[HTML]
+<p>あ&lt;br&gt;
+い</p>
+
+[Markdown]
+- **a**: a1
+- **b**: びーいち
+{.nomarker}
+[HTML]
+<ul>
+<li><strong>a</strong>: a1</li>
+<li><strong>b</strong>: びーいち
+{.nomarker}</li>
+</ul>

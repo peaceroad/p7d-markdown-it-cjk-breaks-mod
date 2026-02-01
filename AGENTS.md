@@ -19,11 +19,13 @@ This repository powers the `markdown-it-cjk-breaks` plugin. The notes below focu
    - Inline-boundary gaps (caused by removed empty text nodes) can be respected by toggling `considerInlineBoundaries`.
 5. **Punctuation spacing injection**
    - When a break is removed, we only then check whether the trailing fragment matched a target sequence and, if the next glyph is printable ASCII or wide/fullwidth, emit the configured spacing token in place of the break.
-   - A second pass (`apply_missing_punctuation_spacing`) ensures punctuation followed by inline markup still receives spacing by scanning ahead to the next visible fragment and verifying that the raw source contained a newline boundary.
+   - A second pass (`apply_missing_punctuation_spacing`) ensures punctuation followed by inline markup still receives spacing by scanning ahead to the next visible fragment and verifying that the raw source contained a newline boundary, while skipping cases where a `softbreak` is still present between tokens.
    - `apply_single_text_token_spacing` handles degenerate cases where the entire inline content collapsed into a single text token.
 6. **Supporting helpers**
-   - `raw_boundary_includes_newline` tracks search positions so repeated lookups remain linear-time.
-   - `derive_after_fragment` and `insert_space_token` abstract token-kind differences when injecting synthetic whitespace.
+   - `raw_boundary_includes_newline` tracks search positions so repeated lookups remain linear-time and accepts multiple raw-fragment candidates.
+   - `derive_after_fragment` can return candidate fragments (e.g., inline code markup, link/autolink markup) to improve raw matching.
+   - `has_active_break` guards spacing insertion when a newline token is still present.
+   - `insert_space_token` abstracts whitespace injection.
 
 ## reminders
 - Keep `index.js` independent from strong-ja rule ordering; coordination belongs in `@peaceroad/markdown-it-strong-ja`.

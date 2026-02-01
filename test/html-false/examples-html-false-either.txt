@@ -1,57 +1,39 @@
 [Markdown]
 A
 漢
-
 [HTML]
 <p>A漢</p>
 
 [Markdown]
 漢
-B
-
+A
 [HTML]
-<p>漢B</p>
+<p>漢A</p>
 
 [Markdown]
 A
 B
-
 [HTML]
 <p>A
 B</p>
 
 [Markdown]
-？
+漢
+<em>A</em>
+[HTML]
+<p>漢&lt;em&gt;A&lt;/em&gt;</p>
+
+[Markdown]
+<em>A</em>
 漢
 [HTML]
-<p>？漢</p>
+<p>&lt;em&gt;A&lt;/em&gt;漢</p>
 
 [Markdown]
-**abc**
-a
+？
+A
 [HTML]
-<p><strong>abc</strong>
-a</p>
-
-[Markdown]
-**漢**
-字
-[HTML]
-<p><strong>漢</strong>
-字</p>
-
-[Markdown]
-**漢**
-b
-[HTML]
-<p><strong>漢</strong>b</p>
-
-[Markdown]
-**a**
-字
-[HTML]
-<p><strong>a</strong>字</p>
-
+<p>？A</p>
 
 [Markdown]
 - **a**: a1

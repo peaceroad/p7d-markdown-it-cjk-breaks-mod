@@ -1,41 +1,72 @@
 [Markdown]
 漢！
 A
-
 [HTML]
 <p>漢！ A</p>
 
 [Markdown]
 Hello!
 漢
-
 [HTML]
 <p>Hello!漢</p>
 
 [Markdown]
 テスト⁉
 漢
-
 [HTML]
 <p>テスト⁉ 漢</p>
 
 [Markdown]
 Hello!?
 漢
-
 [HTML]
 <p>Hello!? 漢</p>
 
 [Markdown]
 Hello?!
 漢
-
 [HTML]
 <p>Hello?! 漢</p>
 
 [Markdown]
 Hello:
 漢
-
 [HTML]
 <p>Hello: 漢</p>
+
+[Markdown]
+漢！
+![img](url)
+[HTML]
+<p>漢！ <img src="url" alt="img"></p>
+
+[Markdown]
+&amp;！
+![img](url)
+[HTML]
+<p>&amp;！<img src="url" alt="img"></p>
+
+[Markdown]
+漢！
+`code`
+[HTML]
+<p>漢！ <code>code</code></p>
+
+[Markdown]
+漢！
+**強調**
+[HTML]
+<p>漢！
+<strong>強調</strong></p>
+
+[Markdown]
+漢！
+[link](url)
+[HTML]
+<p>漢！ <a href="url">link</a></p>
+
+[Markdown]
+漢！
+<http://example.com>
+[HTML]
+<p>漢！ <a href="http://example.com">http://example.com</a></p>

@@ -421,6 +421,7 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     var nextInfo = find_next_visible_token(tokens, idx + 1);
     if (!nextInfo) continue;
     if (nextInfo.token.type === 'text' && WHITESPACE_LEAD_RE.test(nextInfo.token.content || '')) continue;
+    if (has_active_break(tokens, idx, nextInfo.index)) continue;
 
     if (!raw_boundary_includes_newline(inlineToken.content, tokens, idx, nextInfo.index, nextInfo.fragment, rawSearchState)) {
       continue;
@@ -435,20 +436,36 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
   }
 }
 
+function has_active_break(tokens, fromIdx, nextIdx) {
+  for (var idx = fromIdx + 1; idx < nextIdx; idx++) {
+    var token = tokens[idx];
+    if (!token) continue;
+    if (token.type === 'softbreak') return true;
+    if (token.type === 'text' && token.content === '\n') return true;
+  }
+  return false;
+}
+
 
 function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFragment, state) {
   if (!source || !afterFragment) return false;
+  var fragments = Array.isArray(afterFragment) ? afterFragment : [afterFragment];
   var beforeFragment = tokens[fromIdx].content || '';
   var betweenFragment = '';
   for (var k = fromIdx + 1; k < nextIdx; k++) {
     if (tokens[k].markup) betweenFragment += tokens[k].markup;
   }
-  var candidate = beforeFragment + betweenFragment + '\n' + afterFragment;
-  if (!candidate) return false;
-  var startPos = source.indexOf(candidate, state.pos);
-  if (startPos === -1) return false;
-  state.pos = startPos + candidate.length - afterFragment.length;
-  return true;
+  for (var i = 0; i < fragments.length; i++) {
+    var fragment = fragments[i];
+    if (!fragment) continue;
+    var candidate = beforeFragment + betweenFragment + '\n' + fragment;
+    if (!candidate) continue;
+    var startPos = source.indexOf(candidate, state.pos);
+    if (startPos === -1) continue;
+    state.pos = startPos + candidate.length - fragment.length;
+    return true;
+  }
+  return false;
 }
 
 
@@ -467,10 +484,18 @@ function find_next_visible_token(tokens, startIdx) {
 function derive_after_fragment(token) {
   if (!token) return '';
   if (token.type === 'text' || token.type === 'html_inline' || token.type === 'code_inline') {
-    return token.content || '';
+    if (token.type !== 'code_inline') return token.content || '';
+    var fragments = [];
+    var markup = token.markup || '';
+    var content = token.content || '';
+    if (markup && content) fragments.push(markup + content);
+    if (markup) fragments.push(markup);
+    if (content) fragments.push(content);
+    return fragments;
   }
   if (token.type === 'image') return '![';
-  if (token.type === 'link_open') return '[';
+  if (token.type === 'link_open') return token.markup || '[';
+  if (token.nesting === 1 && token.markup) return token.markup;
   if (token.type === 'inline') return token.content || '';
   return '';
 }
