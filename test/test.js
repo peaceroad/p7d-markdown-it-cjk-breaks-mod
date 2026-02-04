@@ -28,6 +28,11 @@ const mdSpaceHalfEitherRemoveTargets = mdit({ html: true }).use(cjkBreaks, {
   spaceAfterPunctuation: 'half',
   spaceAfterPunctuationTargetsRemove: ['.', ':']
 });
+const mdSpaceSurrogateTargets = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargets: ['🈂']
+});
 const mdSpaceHalfDisabledTargets = mdit({ html: true }).use(cjkBreaks, {
   spaceAfterPunctuation: 'half',
   spaceAfterPunctuationTargets: []
@@ -68,6 +73,7 @@ const testData = {
   spaceCustom: __dirname + path.sep + 'examples-space-custom.txt',
   spaceAddTargets: __dirname + path.sep + 'examples-space-add-targets.txt',
   spaceRemoveTargets: __dirname + path.sep + 'examples-space-remove-targets.txt',
+  spaceSurrogateTargets: __dirname + path.sep + 'examples-space-surrogate-targets.txt',
   spaceDisabledTargets: __dirname + path.sep + 'examples-space-disabled-targets.txt',
   eitherNormalize: __dirname + path.sep + 'examples-eithere-and-normalizeSoftBreaks.txt',
   strongJa: __dirname + path.sep + 'examples-strongJa-and-normalizeSoftBreaks.txt',
@@ -128,6 +134,7 @@ pass = runTest(mdSpaceHalfEither, testData.spaceHalfEither, pass);
 pass = runTest(mdSpaceCustomTargets, testData.spaceCustom, pass);
 pass = runTest(mdSpaceHalfEitherAddTargets, testData.spaceAddTargets, pass);
 pass = runTest(mdSpaceHalfEitherRemoveTargets, testData.spaceRemoveTargets, pass);
+pass = runTest(mdSpaceSurrogateTargets, testData.spaceSurrogateTargets, pass);
 pass = runTest(mdSpaceHalfDisabledTargets, testData.spaceDisabledTargets, pass);
 pass = runTest(mdEitherNormalize, testData.eitherNormalize, pass);
 pass = runTest(mdStrongJa, testData.strongJa, pass);

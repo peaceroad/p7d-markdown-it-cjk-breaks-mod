@@ -12,7 +12,6 @@ const HANGUL_RE = /[\u1100-\u11FF\u302E\u302F\u3131-\u318E\u3200-\u321E\u3260-\u
 /* eslint-enable max-len */
 const WHITESPACE_RE = /\s/;
 const WHITESPACE_LEAD_RE = /^\s/;
-const WHITESPACE_TRAIL_RE = /\s$/;
 
 
 function is_surrogate(c1, c2) {
@@ -28,15 +27,18 @@ function is_hangul(c) {
 function create_punctuation_config(targets) {
   var sequences = new Set();
   var maxLength = 0;
+  var endCharMap = Object.create(null);
 
   for (var i = 0; i < targets.length; i++) {
     var value = targets[i];
     if (typeof value !== 'string' || value.length === 0) continue;
     sequences.add(value);
     if (value.length > maxLength) maxLength = value.length;
+    var endChar = get_last_char(value);
+    if (endChar) endCharMap[endChar] = true;
   }
 
-  return { sequences: sequences, maxLength: maxLength };
+  return { sequences: sequences, maxLength: maxLength, endCharMap: endCharMap };
 }
 
 
@@ -116,6 +118,11 @@ function matches_punctuation_sequence(trailing, punctuationConfig) {
   if (!trailing || !punctuationConfig || punctuationConfig.maxLength === 0) return false;
 
   var sequences = punctuationConfig.sequences;
+  var endCharMap = punctuationConfig.endCharMap;
+  if (endCharMap) {
+    var endChar = get_last_char(trailing);
+    if (!endChar || !endCharMap[endChar]) return false;
+  }
   var maxLength = Math.min(trailing.length, punctuationConfig.maxLength);
 
   for (var len = maxLength; len > 0; len--) {
@@ -123,6 +130,16 @@ function matches_punctuation_sequence(trailing, punctuationConfig) {
     if (sequences.has(fragment)) return true;
   }
   return false;
+}
+
+
+function get_last_char(text) {
+  if (!text) return '';
+  var len = text.length;
+  if (len === 1) return text;
+  var c1 = text.charCodeAt(len - 2);
+  var c2 = text.charCodeAt(len - 1);
+  return is_surrogate(c1, c2) ? text.slice(-2) : text.slice(-1);
 }
 
 
@@ -176,7 +193,7 @@ function build_next_text_info(tokens, trackSkippedEmpty) {
 }
 
 
-function process_inlines(tokens, state, ctx, inlineToken) {
+function process_inlines(tokens, ctx, inlineToken) {
   var i, last, next, c1, c2, remove_break;
   var either = ctx.either;
   var normalizeSoftBreaks = ctx.normalizeSoftBreaks;
@@ -185,6 +202,7 @@ function process_inlines(tokens, state, ctx, inlineToken) {
   var maxPunctuationLength = ctx.maxPunctuationLength;
   var considerInlineBoundaries = ctx.considerInlineBoundaries;
   var needsPunctuation = punctuationSpace && punctuationConfig && maxPunctuationLength > 0;
+  var punctuationEndCharMap = punctuationConfig ? punctuationConfig.endCharMap : null;
 
   if (!tokens || tokens.length === 0) return;
   if (normalizeSoftBreaks) normalize_text_tokens(tokens);
@@ -283,14 +301,16 @@ function process_inlines(tokens, state, ctx, inlineToken) {
 
       if (remove_break) {
         var insertPunctuationSpace = false;
-        if (needsPunctuation && last && next && next !== '\u200b') {
-          var trailing = hasLastText ? lastTextContent.slice(-maxPunctuationLength) : '';
-          if (matches_punctuation_sequence(trailing, punctuationConfig)) {
-            if (!nextWidthComputed) {
-              nextWidthClass = get_cached_width_class(next);
+        if (needsPunctuation && hasLastText && last && next && next !== '\u200b') {
+          if (!punctuationEndCharMap || punctuationEndCharMap[last]) {
+            var trailing = lastTextContent.slice(-maxPunctuationLength);
+            if (matches_punctuation_sequence(trailing, punctuationConfig)) {
+              if (!nextWidthComputed) {
+                nextWidthClass = get_cached_width_class(next);
+              }
+              var nextIsFullwidthOrWide = nextWidthClass === 'F' || nextWidthClass === 'W';
+              if (nextIsFullwidthOrWide || is_printable_ascii(next)) insertPunctuationSpace = true;
             }
-            var nextIsFullwidthOrWide = nextWidthClass === 'F' || nextWidthClass === 'W';
-            if (nextIsFullwidthOrWide || is_printable_ascii(next)) insertPunctuationSpace = true;
           }
         }
         token.type    = 'text';
@@ -365,7 +385,6 @@ function split_text_token(token) {
     parts.push(clone_text_token(TokenConstructor, token, content.slice(start)));
   }
 
-  if (parts.length === 0) parts.push(token);
   return parts;
 }
 
@@ -407,6 +426,7 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
   if (!tokens || tokens.length === 0) return;
   var maxPunctuationLength = punctuationConfig.maxLength;
   if (maxPunctuationLength <= 0) return;
+  var endCharMap = punctuationConfig.endCharMap;
 
   var rawSearchState = { pos: 0 };
 
@@ -414,9 +434,12 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     var current = tokens[idx];
     if (!current || current.type !== 'text' || !current.content) continue;
 
+    if (endCharMap) {
+      var endChar = get_last_char(current.content);
+      if (!endChar || !endCharMap[endChar]) continue;
+    }
     var trailing = current.content.slice(-maxPunctuationLength);
     if (!matches_punctuation_sequence(trailing, punctuationConfig)) continue;
-    if (WHITESPACE_TRAIL_RE.test(current.content)) continue;
 
     var nextInfo = find_next_visible_token(tokens, idx + 1);
     if (!nextInfo) continue;
@@ -459,7 +482,6 @@ function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFr
     var fragment = fragments[i];
     if (!fragment) continue;
     var candidate = beforeFragment + betweenFragment + '\n' + fragment;
-    if (!candidate) continue;
     var startPos = source.indexOf(candidate, state.pos);
     if (startPos === -1) continue;
     state.pos = startPos + candidate.length - fragment.length;
@@ -619,7 +641,7 @@ export default function cjk_breaks_plugin(md, opts) {
   function cjk_breaks(state) {
     for (var blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
       if (state.tokens[blkIdx].type !== 'inline') continue;
-      process_inlines(state.tokens[blkIdx].children, state, ctx, state.tokens[blkIdx]);
+      process_inlines(state.tokens[blkIdx].children, ctx, state.tokens[blkIdx]);
     }
   }
   if (!md || !md.core || !md.core.ruler) return;
