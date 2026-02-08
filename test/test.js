@@ -18,6 +18,21 @@ const mdSpaceCustomTargets = mdit({ html: true }).use(cjkBreaks, {
   spaceAfterPunctuation: 'half',
   spaceAfterPunctuationTargets: ['??']
 });
+const mdSpaceCustomLengths = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargets: ['...']
+});
+const mdSpaceCustomFullwidthPairs = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargets: ['！！']
+});
+const mdSpaceCustomMixedTargets = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargets: ['...', '🈂!', '', null, 123, '...']
+});
 const mdSpaceHalfEitherAddTargets = mdit({ html: true }).use(cjkBreaks, {
   either: true,
   spaceAfterPunctuation: 'half',
@@ -32,6 +47,22 @@ const mdSpaceSurrogateTargets = mdit({ html: true }).use(cjkBreaks, {
   either: true,
   spaceAfterPunctuation: 'half',
   spaceAfterPunctuationTargets: ['🈂']
+});
+const mdSpaceInvalidTargets = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargets: [null, '', 123]
+});
+const mdSpaceInvalidPlusAdd = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargets: [null, '', 123],
+  spaceAfterPunctuationTargetsAdd: ['??']
+});
+const mdSpaceSurrogatePairs = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half',
+  spaceAfterPunctuationTargets: ['🈂🈂']
 });
 const mdSpaceHalfDisabledTargets = mdit({ html: true }).use(cjkBreaks, {
   spaceAfterPunctuation: 'half',
@@ -71,9 +102,15 @@ const testData = {
   spaceFull: __dirname + path.sep + 'examples-space-full.txt',
   spaceHalfEither: __dirname + path.sep + 'examples-space-half-either.txt',
   spaceCustom: __dirname + path.sep + 'examples-space-custom.txt',
+  spaceCustomLengths: __dirname + path.sep + 'examples-space-custom-lengths.txt',
+  spaceCustomFullwidthPairs: __dirname + path.sep + 'examples-space-custom-fullwidth-pairs.txt',
+  spaceCustomMixedTargets: __dirname + path.sep + 'examples-space-custom-mixed-targets.txt',
   spaceAddTargets: __dirname + path.sep + 'examples-space-add-targets.txt',
   spaceRemoveTargets: __dirname + path.sep + 'examples-space-remove-targets.txt',
   spaceSurrogateTargets: __dirname + path.sep + 'examples-space-surrogate-targets.txt',
+  spaceSurrogatePairs: __dirname + path.sep + 'examples-space-surrogate-pairs.txt',
+  spaceInvalidTargets: __dirname + path.sep + 'examples-space-invalid-targets.txt',
+  spaceInvalidPlusAdd: __dirname + path.sep + 'examples-space-invalid-plus-add.txt',
   spaceDisabledTargets: __dirname + path.sep + 'examples-space-disabled-targets.txt',
   eitherNormalize: __dirname + path.sep + 'examples-eithere-and-normalizeSoftBreaks.txt',
   strongJa: __dirname + path.sep + 'examples-strongJa-and-normalizeSoftBreaks.txt',
@@ -132,9 +169,15 @@ pass = runTest(mdSpaceHalf, testData.spaceHalf, pass);
 pass = runTest(mdSpaceFull, testData.spaceFull, pass);
 pass = runTest(mdSpaceHalfEither, testData.spaceHalfEither, pass);
 pass = runTest(mdSpaceCustomTargets, testData.spaceCustom, pass);
+pass = runTest(mdSpaceCustomLengths, testData.spaceCustomLengths, pass);
+pass = runTest(mdSpaceCustomFullwidthPairs, testData.spaceCustomFullwidthPairs, pass);
+pass = runTest(mdSpaceCustomMixedTargets, testData.spaceCustomMixedTargets, pass);
 pass = runTest(mdSpaceHalfEitherAddTargets, testData.spaceAddTargets, pass);
 pass = runTest(mdSpaceHalfEitherRemoveTargets, testData.spaceRemoveTargets, pass);
 pass = runTest(mdSpaceSurrogateTargets, testData.spaceSurrogateTargets, pass);
+pass = runTest(mdSpaceSurrogatePairs, testData.spaceSurrogatePairs, pass);
+pass = runTest(mdSpaceInvalidTargets, testData.spaceInvalidTargets, pass);
+pass = runTest(mdSpaceInvalidPlusAdd, testData.spaceInvalidPlusAdd, pass);
 pass = runTest(mdSpaceHalfDisabledTargets, testData.spaceDisabledTargets, pass);
 pass = runTest(mdEitherNormalize, testData.eitherNormalize, pass);
 pass = runTest(mdStrongJa, testData.strongJa, pass);

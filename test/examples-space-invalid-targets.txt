@@ -1,0 +1,13 @@
+[Markdown]
+漢！
+A
+
+[HTML]
+<p>漢！A</p>
+
+[Markdown]
+漢！
+漢
+
+[HTML]
+<p>漢！漢</p>
