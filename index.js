@@ -28,17 +28,25 @@ function create_punctuation_config(targets) {
   var sequences = new Set();
   var maxLength = 0;
   var endCharMap = Object.create(null);
+  var lengthMap = Object.create(null);
+  var lengths = [];
 
   for (var i = 0; i < targets.length; i++) {
     var value = targets[i];
     if (typeof value !== 'string' || value.length === 0) continue;
     sequences.add(value);
-    if (value.length > maxLength) maxLength = value.length;
+    var valueLength = value.length;
+    if (valueLength > maxLength) maxLength = valueLength;
+    if (!lengthMap[valueLength]) {
+      lengthMap[valueLength] = true;
+      lengths.push(valueLength);
+    }
     var endChar = get_last_char(value);
     if (endChar) endCharMap[endChar] = true;
   }
 
-  return { sequences: sequences, maxLength: maxLength, endCharMap: endCharMap };
+  lengths.sort(function (a, b) { return b - a; });
+  return { sequences: sequences, maxLength: maxLength, endCharMap: endCharMap, lengths: lengths };
 }
 
 
@@ -114,18 +122,20 @@ function resolve_punctuation_targets(opts) {
 }
 
 
-function matches_punctuation_sequence(trailing, punctuationConfig) {
+function matches_punctuation_sequence(trailing, punctuationConfig, skipEndCharCheck) {
   if (!trailing || !punctuationConfig || punctuationConfig.maxLength === 0) return false;
 
   var sequences = punctuationConfig.sequences;
   var endCharMap = punctuationConfig.endCharMap;
-  if (endCharMap) {
+  var lengths = punctuationConfig.lengths;
+  if (!skipEndCharCheck) {
     var endChar = get_last_char(trailing);
-    if (!endChar || !endCharMap[endChar]) return false;
+    if (!endCharMap[endChar]) return false;
   }
-  var maxLength = Math.min(trailing.length, punctuationConfig.maxLength);
-
-  for (var len = maxLength; len > 0; len--) {
+  var trailingLength = trailing.length;
+  for (var i = 0; i < lengths.length; i++) {
+    var len = lengths[i];
+    if (len > trailingLength) continue;
     var fragment = trailing.slice(-len);
     if (sequences.has(fragment)) return true;
   }
@@ -158,8 +168,7 @@ function is_fullwidth_or_wide(ch) {
 
 function get_cjk_width_class(ch) {
   if (!ch) return '';
-  var codePoint = ch.codePointAt(0);
-  if (codePoint !== undefined && codePoint <= ASCII_PRINTABLE_MAX) return '';
+  if (ch.charCodeAt(0) <= ASCII_PRINTABLE_MAX) return '';
   var width = eastAsianWidth(ch);
   return width === 'F' || width === 'W' || width === 'H' ? width : '';
 }
@@ -212,19 +221,8 @@ function process_inlines(tokens, ctx, inlineToken) {
   var widthCache = null;
   function get_cached_width_class(ch) {
     if (!ch) return '';
-    if (!widthCache) {
-      var firstWidth = get_cjk_width_class(ch);
-      if (firstWidth === '') {
-        var codePoint = ch.codePointAt(0);
-        if (codePoint !== undefined && codePoint <= ASCII_PRINTABLE_MAX) return '';
-        widthCache = Object.create(null);
-        widthCache[ch] = '';
-        return '';
-      }
-      widthCache = Object.create(null);
-      widthCache[ch] = firstWidth;
-      return firstWidth;
-    }
+    if (ch.charCodeAt(0) <= ASCII_PRINTABLE_MAX) return '';
+    if (!widthCache) widthCache = Object.create(null);
     var cached = widthCache[ch];
     if (cached !== undefined) return cached;
     var width = get_cjk_width_class(ch);
@@ -302,9 +300,9 @@ function process_inlines(tokens, ctx, inlineToken) {
       if (remove_break) {
         var insertPunctuationSpace = false;
         if (needsPunctuation && hasLastText && last && next && next !== '\u200b') {
-          if (!punctuationEndCharMap || punctuationEndCharMap[last]) {
+          if (punctuationEndCharMap[last]) {
             var trailing = lastTextContent.slice(-maxPunctuationLength);
-            if (matches_punctuation_sequence(trailing, punctuationConfig)) {
+            if (matches_punctuation_sequence(trailing, punctuationConfig, true)) {
               if (!nextWidthComputed) {
                 nextWidthClass = get_cached_width_class(next);
               }
@@ -434,12 +432,10 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     var current = tokens[idx];
     if (!current || current.type !== 'text' || !current.content) continue;
 
-    if (endCharMap) {
-      var endChar = get_last_char(current.content);
-      if (!endChar || !endCharMap[endChar]) continue;
-    }
+    var endChar = get_last_char(current.content);
+    if (!endCharMap[endChar]) continue;
     var trailing = current.content.slice(-maxPunctuationLength);
-    if (!matches_punctuation_sequence(trailing, punctuationConfig)) continue;
+    if (!matches_punctuation_sequence(trailing, punctuationConfig, true)) continue;
 
     var nextInfo = find_next_visible_token(tokens, idx + 1);
     if (!nextInfo) continue;
