@@ -67,10 +67,11 @@ mdStrongJaFriendly.render('**漢**\nb');
 Provide an optional option `either`(default: false, which works as original version) to determine whether allowing removing linebreak when either the character before **OR** after the linebreak is east asian character.
 
 ```js
-var md = require('markdown-it')();
-var cjk_breaks = require('markdown-it-cjk-breaks');
+import MarkdownIt from 'markdown-it';
+import cjkBreaks from '@peaceroad/markdown-it-cjk-breaks-mod';
 
-md.use(cjk_breaks, {either: true}); // << set either to true
+const md = MarkdownIt();
+md.use(cjkBreaks, { either: true }); // << set either to true
 
 md.render(`
 あおえ
@@ -109,10 +110,11 @@ yarn add markdown-it-cjk-breaks
 ## Usage
 
 ```js
-var md = require('markdown-it')();
-var cjk_breaks = require('markdown-it-cjk-breaks');
+import MarkdownIt from 'markdown-it';
+import cjkBreaks from '@peaceroad/markdown-it-cjk-breaks-mod';
 
-md.use(cjk_breaks);
+const md = MarkdownIt();
+md.use(cjkBreaks);
 
 md.render(`
 あおえ
