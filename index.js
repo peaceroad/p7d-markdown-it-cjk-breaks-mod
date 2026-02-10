@@ -440,7 +440,7 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     var nextInfo = find_next_visible_token(tokens, idx + 1);
     if (!nextInfo) continue;
     if (nextInfo.token.type === 'text' && WHITESPACE_LEAD_RE.test(nextInfo.token.content || '')) continue;
-    if (has_active_break(tokens, idx, nextInfo.index)) continue;
+    if (nextInfo.hasActiveBreak) continue;
 
     if (!raw_boundary_includes_newline(inlineToken.content, tokens, idx, nextInfo.index, nextInfo.fragment, rawSearchState)) {
       continue;
@@ -454,17 +454,6 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, punctuationConfig);
   }
 }
-
-function has_active_break(tokens, fromIdx, nextIdx) {
-  for (var idx = fromIdx + 1; idx < nextIdx; idx++) {
-    var token = tokens[idx];
-    if (!token) continue;
-    if (token.type === 'softbreak') return true;
-    if (token.type === 'text' && token.content === '\n') return true;
-  }
-  return false;
-}
-
 
 function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFragment, state) {
   if (!source || !afterFragment) return false;
@@ -488,12 +477,16 @@ function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFr
 
 
 function find_next_visible_token(tokens, startIdx) {
+  var hasActiveBreak = false;
   for (var idx = startIdx; idx < tokens.length; idx++) {
     var token = tokens[idx];
     if (!token) continue;
+    if (!hasActiveBreak && (token.type === 'softbreak' || (token.type === 'text' && token.content === '\n'))) {
+      hasActiveBreak = true;
+    }
     var fragment = derive_after_fragment(token);
     if (!fragment) continue;
-    return { index: idx, token: token, fragment: fragment };
+    return { index: idx, token: token, fragment: fragment, hasActiveBreak: hasActiveBreak };
   }
   return null;
 }
