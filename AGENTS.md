@@ -20,11 +20,12 @@ This repository powers the `markdown-it-cjk-breaks` plugin. The notes below focu
 5. **Punctuation spacing injection**
    - When a break is removed, we only then check whether the trailing fragment matched a target sequence and, if the next glyph is printable ASCII or wide/fullwidth, emit the configured spacing token in place of the break.
    - A second pass (`apply_missing_punctuation_spacing`) ensures punctuation followed by inline markup still receives spacing by scanning ahead to the next visible fragment and verifying that the raw source contained a newline boundary, while skipping cases where a `softbreak` is still present between tokens.
+   - `apply_missing_punctuation_spacing` short-circuits to `apply_single_text_token_spacing` when the inline children already collapsed to one text token, avoiding an unnecessary scan loop.
    - `apply_single_text_token_spacing` handles degenerate cases where the entire inline content collapsed into a single text token.
 6. **Supporting helpers**
    - `raw_boundary_includes_newline` tracks search positions so repeated lookups remain linear-time and accepts multiple raw-fragment candidates.
    - `derive_after_fragment` can return candidate fragments (e.g., inline code markup, link/autolink markup) to improve raw matching.
-   - `has_active_break` guards spacing insertion when a newline token is still present.
+   - `find_next_visible_token` also reports `hasActiveBreak`, so visible-token discovery and break-presence checks are done in one pass.
    - `insert_space_token` abstracts whitespace injection.
 
 ## reminders

@@ -299,7 +299,7 @@ function process_inlines(tokens, ctx, inlineToken) {
 
       if (remove_break) {
         var insertPunctuationSpace = false;
-        if (needsPunctuation && hasLastText && last && next && next !== '\u200b') {
+        if (needsPunctuation && hasLastText && nextIdx !== -1 && next !== '\u200b') {
           if (punctuationEndCharMap[last]) {
             var trailing = lastTextContent.slice(-maxPunctuationLength);
             if (matches_punctuation_sequence(trailing, punctuationConfig, true)) {
@@ -426,6 +426,11 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
   if (maxPunctuationLength <= 0) return;
   var endCharMap = punctuationConfig.endCharMap;
 
+  if (tokens.length === 1) {
+    apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, punctuationConfig);
+    return;
+  }
+
   var rawSearchState = { pos: 0 };
 
   for (var idx = 0; idx < tokens.length; idx++) {
@@ -450,9 +455,6 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     idx = nextInfo.index;
   }
 
-  if (tokens.length === 1) {
-    apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, punctuationConfig);
-  }
 }
 
 function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFragment, state) {
