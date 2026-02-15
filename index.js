@@ -127,9 +127,9 @@ function matches_punctuation_sequence(trailing, punctuationConfig, skipEndCharCh
   if (!trailing || !punctuationConfig || punctuationConfig.maxLength === 0) return false;
 
   var sequences = punctuationConfig.sequences;
-  var endCharMap = punctuationConfig.endCharMap;
   var lengths = punctuationConfig.lengths;
   if (!skipEndCharCheck) {
+    var endCharMap = punctuationConfig.endCharMap;
     var endChar = get_last_char(trailing);
     if (!endCharMap[endChar]) return false;
   }
