@@ -33,6 +33,7 @@ function create_punctuation_config(targets) {
   for (var i = 0; i < targets.length; i++) {
     var value = targets[i];
     if (typeof value !== 'string' || value.length === 0) continue;
+    if (sequences.has(value)) continue;
     sequences.add(value);
     var valueLength = value.length;
     if (valueLength > maxLength) maxLength = valueLength;
@@ -137,7 +138,7 @@ function matches_punctuation_sequence(trailing, punctuationConfig, skipEndCharCh
   for (var i = 0; i < lengths.length; i++) {
     var len = lengths[i];
     if (len > trailingLength) continue;
-    var fragment = trailing.slice(-len);
+    var fragment = len === trailingLength ? trailing : trailing.slice(-len);
     if (sequences.has(fragment)) return true;
   }
   return false;
