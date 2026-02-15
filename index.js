@@ -11,7 +11,6 @@ const DEFAULT_PUNCTUATION_CONFIG = create_punctuation_config(DEFAULT_PUNCTUATION
 const HANGUL_RE = /[\u1100-\u11FF\u302E\u302F\u3131-\u318E\u3200-\u321E\u3260-\u327E\uA960-\uA97C\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uFFA0-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]/;
 /* eslint-enable max-len */
 const WHITESPACE_RE = /\s/;
-const WHITESPACE_LEAD_RE = /^\s/;
 
 
 function is_surrogate(c1, c2) {
@@ -45,7 +44,9 @@ function create_punctuation_config(targets) {
     if (endChar) endCharMap[endChar] = true;
   }
 
-  lengths.sort(function (a, b) { return b - a; });
+  if (lengths.length > 1) {
+    lengths.sort(function (a, b) { return b - a; });
+  }
   return { sequences: sequences, maxLength: maxLength, endCharMap: endCharMap, lengths: lengths };
 }
 
@@ -160,6 +161,12 @@ function is_printable_ascii(ch) {
 }
 
 
+function has_leading_whitespace(text) {
+  if (!text) return false;
+  return WHITESPACE_RE.test(text.charAt(0));
+}
+
+
 function is_fullwidth_or_wide(ch) {
   var width = get_cjk_width_class(ch);
   return width === 'F' || width === 'W';
@@ -208,9 +215,8 @@ function process_inlines(tokens, ctx, inlineToken) {
   var normalizeSoftBreaks = ctx.normalizeSoftBreaks;
   var punctuationSpace = ctx.punctuationSpace;
   var punctuationConfig = ctx.punctuationConfig;
-  var maxPunctuationLength = ctx.maxPunctuationLength;
   var considerInlineBoundaries = ctx.considerInlineBoundaries;
-  var needsPunctuation = punctuationSpace && punctuationConfig && maxPunctuationLength > 0;
+  var needsPunctuation = punctuationSpace && punctuationConfig && ctx.maxPunctuationLength > 0;
   var punctuationEndCharMap = punctuationConfig ? punctuationConfig.endCharMap : null;
 
   if (!tokens || tokens.length === 0) return;
@@ -225,7 +231,8 @@ function process_inlines(tokens, ctx, inlineToken) {
     if (!widthCache) widthCache = Object.create(null);
     var cached = widthCache[ch];
     if (cached !== undefined) return cached;
-    var width = get_cjk_width_class(ch);
+    var width = eastAsianWidth(ch);
+    width = width === 'F' || width === 'W' || width === 'H' ? width : '';
     widthCache[ch] = width;
     return width;
   }
@@ -261,12 +268,10 @@ function process_inlines(tokens, ctx, inlineToken) {
 
       var nextIdx = nextTextIndex[i];
       if (nextIdx !== -1) {
-        var nextContent = tokens[nextIdx].content || '';
-        if (nextContent) {
-          c1 = nextContent.charCodeAt(0);
-          c2 = nextContent.charCodeAt(1);
-          next = nextContent.slice(0, is_surrogate(c1, c2) ? 2 : 1);
-        }
+        var nextContent = tokens[nextIdx].content;
+        c1 = nextContent.charCodeAt(0);
+        c2 = nextContent.charCodeAt(1);
+        next = nextContent.slice(0, is_surrogate(c1, c2) ? 2 : 1);
       }
 
       remove_break = false;
@@ -301,8 +306,7 @@ function process_inlines(tokens, ctx, inlineToken) {
         var insertPunctuationSpace = false;
         if (needsPunctuation && hasLastText && nextIdx !== -1 && next !== '\u200b') {
           if (punctuationEndCharMap[last]) {
-            var trailing = lastTextContent.slice(-maxPunctuationLength);
-            if (matches_punctuation_sequence(trailing, punctuationConfig, true)) {
+            if (matches_punctuation_sequence(lastTextContent, punctuationConfig, true)) {
               if (!nextWidthComputed) {
                 nextWidthClass = get_cached_width_class(next);
               }
@@ -422,8 +426,7 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
   if (!inlineToken || !inlineToken.content) return;
   if (inlineToken.content.indexOf('\n') === -1) return;
   if (!tokens || tokens.length === 0) return;
-  var maxPunctuationLength = punctuationConfig.maxLength;
-  if (maxPunctuationLength <= 0) return;
+  if (punctuationConfig.maxLength <= 0) return;
   var endCharMap = punctuationConfig.endCharMap;
 
   if (tokens.length === 1) {
@@ -439,12 +442,11 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
 
     var endChar = get_last_char(current.content);
     if (!endCharMap[endChar]) continue;
-    var trailing = current.content.slice(-maxPunctuationLength);
-    if (!matches_punctuation_sequence(trailing, punctuationConfig, true)) continue;
+    if (!matches_punctuation_sequence(current.content, punctuationConfig, true)) continue;
 
     var nextInfo = find_next_visible_token(tokens, idx + 1);
     if (!nextInfo) continue;
-    if (nextInfo.token.type === 'text' && WHITESPACE_LEAD_RE.test(nextInfo.token.content || '')) continue;
+    if (nextInfo.token.type === 'text' && has_leading_whitespace(nextInfo.token.content)) continue;
     if (nextInfo.hasActiveBreak) continue;
 
     if (!raw_boundary_includes_newline(inlineToken.content, tokens, idx, nextInfo.index, nextInfo.fragment, rawSearchState)) {
@@ -459,22 +461,30 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
 
 function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFragment, state) {
   if (!source || !afterFragment) return false;
-  var fragments = Array.isArray(afterFragment) ? afterFragment : [afterFragment];
   var beforeFragment = tokens[fromIdx].content || '';
   var betweenFragment = '';
   for (var k = fromIdx + 1; k < nextIdx; k++) {
     if (tokens[k].markup) betweenFragment += tokens[k].markup;
   }
-  for (var i = 0; i < fragments.length; i++) {
-    var fragment = fragments[i];
-    if (!fragment) continue;
-    var candidate = beforeFragment + betweenFragment + '\n' + fragment;
-    var startPos = source.indexOf(candidate, state.pos);
-    if (startPos === -1) continue;
-    state.pos = startPos + candidate.length - fragment.length;
-    return true;
+  if (Array.isArray(afterFragment)) {
+    for (var i = 0; i < afterFragment.length; i++) {
+      var fragment = afterFragment[i];
+      if (!fragment) continue;
+      var candidate = beforeFragment + betweenFragment + '\n' + fragment;
+      var startPos = source.indexOf(candidate, state.pos);
+      if (startPos === -1) continue;
+      state.pos = startPos + candidate.length - fragment.length;
+      return true;
+    }
+    return false;
   }
-  return false;
+  var fragment = afterFragment;
+  if (!fragment) return false;
+  var candidate = beforeFragment + betweenFragment + '\n' + fragment;
+  var startPos = source.indexOf(candidate, state.pos);
+  if (startPos === -1) return false;
+  state.pos = startPos + candidate.length - fragment.length;
+  return true;
 }
 
 
@@ -504,7 +514,7 @@ function derive_after_fragment(token) {
     if (markup && content) fragments.push(markup + content);
     if (markup) fragments.push(markup);
     if (content) fragments.push(content);
-    return fragments;
+    return fragments.length > 0 ? fragments : '';
   }
   if (token.type === 'image') return '![';
   if (token.type === 'link_open') return token.markup || '[';
