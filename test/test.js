@@ -160,6 +160,22 @@ const runTest = (processor, pat, pass) => {
   return pass;
 };
 
+const runDirectTest = (name, processor, markdown, html, pass) => {
+  console.log('===========================================================');
+  console.log(name);
+  const rendered = processor.render(markdown);
+  try {
+    assert.strictEqual(rendered, html);
+  } catch (e) {
+    pass = false;
+    console.log(markdown);
+    console.log('incorrect:');
+    console.log('H: ' + rendered + 'C: ' + html);
+    console.log('H length:', rendered.length, 'C length:', html.length);
+  }
+  return pass;
+};
+
 let pass = true;
 pass = runTest(md, testData.standard, pass);
 pass = runTest(mdHtmlFalse, testData.htmlFalse, pass);
@@ -183,6 +199,27 @@ pass = runTest(mdEitherNormalize, testData.eitherNormalize, pass);
 pass = runTest(mdStrongJa, testData.strongJa, pass);
 pass = runTest(mdStrongJaSpace, testData.strongJaSpace, pass);
 pass = runTest(mdStrongJaSpaceLate, testData.strongJaSpaceLate, pass);
+pass = runDirectTest(
+  'direct-crlf-inline-html-spacing',
+  mdSpaceHalfEither,
+  '漢！\r\n<span class="note">メモ</span>',
+  '<p>漢！ <span class="note">メモ</span></p>\n',
+  pass
+);
+pass = runDirectTest(
+  'direct-crlf-normalize-softbreaks',
+  mdEitherNormalize,
+  '**漢**\r\nb',
+  '<p><strong>漢</strong>b</p>\n',
+  pass
+);
+pass = runDirectTest(
+  'direct-mixed-line-endings-strong-ja-space',
+  mdStrongJaSpace,
+  '**Hello!?**\r\n漢？\n終',
+  '<p><strong>Hello!?</strong> 漢？ 終</p>\n',
+  pass
+);
 
 if (pass) {
   console.log('Passed all test.');

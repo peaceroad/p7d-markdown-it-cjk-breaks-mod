@@ -76,3 +76,9 @@ Hello:
 <http://example.com>
 [HTML]
 <p>漢！ <a href="http://example.com">http://example.com</a></p>
+
+[Markdown]
+漢！
+<span class="note">メモ</span>
+[HTML]
+<p>漢！ <span class="note">メモ</span></p>

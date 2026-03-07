@@ -23,10 +23,11 @@ This repository powers the `markdown-it-cjk-breaks` plugin. The notes below focu
    - `apply_missing_punctuation_spacing` short-circuits to `apply_single_text_token_spacing` when the inline children already collapsed to one text token, avoiding an unnecessary scan loop.
    - `apply_single_text_token_spacing` handles degenerate cases where the entire inline content collapsed into a single text token.
 6. **Supporting helpers**
-   - `raw_boundary_includes_newline` tracks search positions so repeated lookups remain linear-time and accepts multiple raw-fragment candidates.
+   - `raw_boundary_includes_newline` tracks search positions so repeated lookups remain linear-time and accepts multiple raw-fragment candidates, but now consumes precomputed boundary fragments instead of rescanning the token range.
    - `derive_after_fragment` can return candidate fragments (e.g., inline code markup, link/autolink markup) to improve raw matching.
-   - `find_next_visible_token` also reports `hasActiveBreak`, so visible-token discovery and break-presence checks are done in one pass.
+   - `find_next_visible_token` reports both `hasActiveBreak` and accumulated `betweenMarkup`, so visible-token discovery, break-presence checks, and middle-markup collection are done in one pass.
    - `insert_space_token` abstracts whitespace injection.
+   - `split_text_token` can reuse the original `text` token for one retained text segment, reducing allocations when `normalizeSoftBreaks` is enabled.
 
 ## reminders
 - Keep `index.js` independent from strong-ja rule ordering; coordination belongs in `@peaceroad/markdown-it-strong-ja`.

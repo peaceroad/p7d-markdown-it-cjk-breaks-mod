@@ -239,7 +239,6 @@ function process_inlines(tokens, ctx, inlineToken) {
   }
 
   var lastTextContent = '';
-  var hasLastText = false;
   var sawEmptySinceLast = false;
 
   for (i = 0; i < tokens.length; i++) {
@@ -261,7 +260,7 @@ function process_inlines(tokens, ctx, inlineToken) {
         skippedEmptyAfter = nextSkippedEmpty ? nextSkippedEmpty[i] : false;
       }
 
-      if (hasLastText) {
+      if (lastTextContent) {
         c1 = lastTextContent.charCodeAt(lastTextContent.length - 2);
         c2 = lastTextContent.charCodeAt(lastTextContent.length - 1);
         last = lastTextContent.slice(is_surrogate(c1, c2) ? -2 : -1);
@@ -305,7 +304,7 @@ function process_inlines(tokens, ctx, inlineToken) {
 
       if (remove_break) {
         var insertPunctuationSpace = false;
-        if (needsPunctuation && hasLastText && nextIdx !== -1 && next !== '\u200b') {
+        if (needsPunctuation && lastTextContent && nextIdx !== -1 && next !== '\u200b') {
           if (punctuationEndCharMap[last]) {
             if (matches_punctuation_sequence(lastTextContent, punctuationConfig, true)) {
               if (!nextWidthComputed) {
@@ -326,7 +325,6 @@ function process_inlines(tokens, ctx, inlineToken) {
         if (considerInlineBoundaries) sawEmptySinceLast = true;
       } else {
         lastTextContent = token.content;
-        hasLastText = true;
         if (considerInlineBoundaries) sawEmptySinceLast = false;
       }
     }
@@ -372,21 +370,29 @@ function split_text_token(token) {
   var parts = [];
   var content = token.content;
   var start = 0;
+  var reusedToken = false;
+
+  function push_text_part(text) {
+    if (!text) return;
+    if (!reusedToken) {
+      token.content = text;
+      parts.push(token);
+      reusedToken = true;
+      return;
+    }
+    parts.push(clone_text_token(TokenConstructor, token, text));
+  }
 
   for (var pos = 0; pos < content.length; pos++) {
     if (content.charCodeAt(pos) !== 0x0A) continue;
 
-    if (pos > start) {
-      parts.push(clone_text_token(TokenConstructor, token, content.slice(start, pos)));
-    }
+    if (pos > start) push_text_part(content.slice(start, pos));
 
     parts.push(create_softbreak_token(TokenConstructor, token));
     start = pos + 1;
   }
 
-  if (start < content.length) {
-    parts.push(clone_text_token(TokenConstructor, token, content.slice(start)));
-  }
+  if (start < content.length) push_text_part(content.slice(start));
 
   return parts;
 }
@@ -450,7 +456,13 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     if (nextInfo.token.type === 'text' && has_leading_whitespace(nextInfo.token.content)) continue;
     if (nextInfo.hasActiveBreak) continue;
 
-    if (!raw_boundary_includes_newline(inlineToken.content, tokens, idx, nextInfo.index, nextInfo.fragment, rawSearchState)) {
+    if (!raw_boundary_includes_newline(
+      inlineToken.content,
+      current.content,
+      nextInfo.betweenMarkup,
+      nextInfo.fragment,
+      rawSearchState
+    )) {
       continue;
     }
 
@@ -460,13 +472,10 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
 
 }
 
-function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFragment, state) {
+function raw_boundary_includes_newline(source, beforeFragment, betweenFragment, afterFragment, state) {
   if (!source || !afterFragment) return false;
-  var beforeFragment = tokens[fromIdx].content || '';
-  var betweenFragment = '';
-  for (var k = fromIdx + 1; k < nextIdx; k++) {
-    if (tokens[k].markup) betweenFragment += tokens[k].markup;
-  }
+  if (!beforeFragment) return false;
+  betweenFragment = betweenFragment || '';
   if (Array.isArray(afterFragment)) {
     for (var i = 0; i < afterFragment.length; i++) {
       var fragment = afterFragment[i];
@@ -480,7 +489,6 @@ function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFr
     return false;
   }
   var fragment = afterFragment;
-  if (!fragment) return false;
   var candidate = beforeFragment + betweenFragment + '\n' + fragment;
   var startPos = source.indexOf(candidate, state.pos);
   if (startPos === -1) return false;
@@ -491,6 +499,7 @@ function raw_boundary_includes_newline(source, tokens, fromIdx, nextIdx, afterFr
 
 function find_next_visible_token(tokens, startIdx) {
   var hasActiveBreak = false;
+  var betweenMarkup = '';
   for (var idx = startIdx; idx < tokens.length; idx++) {
     var token = tokens[idx];
     if (!token) continue;
@@ -498,8 +507,11 @@ function find_next_visible_token(tokens, startIdx) {
       hasActiveBreak = true;
     }
     var fragment = derive_after_fragment(token);
-    if (!fragment) continue;
-    return { index: idx, token: token, fragment: fragment, hasActiveBreak: hasActiveBreak };
+    if (!fragment) {
+      if (token.markup) betweenMarkup += token.markup;
+      continue;
+    }
+    return { index: idx, token: token, fragment: fragment, hasActiveBreak: hasActiveBreak, betweenMarkup: betweenMarkup };
   }
   return null;
 }
@@ -555,7 +567,6 @@ function apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, 
   if (maxPunctuationLength <= 0) return;
 
   var segments = inlineToken.content.split('\n');
-  if (segments.length < 2) return;
   var cumulativeLength = 0;
   var offsetDelta = 0;
   var updatedContent = token.content;
