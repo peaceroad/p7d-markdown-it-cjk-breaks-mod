@@ -350,10 +350,7 @@ function normalize_text_tokens(tokens) {
       normalized = tokens.slice(0, idx);
     }
 
-    var replacement = split_text_token(token);
-    for (var r = 0; r < replacement.length; r++) {
-      normalized.push(replacement[r]);
-    }
+    append_split_text_token(normalized, token);
   }
 
   if (normalized) {
@@ -365,9 +362,8 @@ function normalize_text_tokens(tokens) {
 }
 
 
-function split_text_token(token) {
+function append_split_text_token(target, token) {
   var TokenConstructor = token.constructor;
-  var parts = [];
   var content = token.content;
   var start = 0;
   var reusedToken = false;
@@ -376,11 +372,11 @@ function split_text_token(token) {
     if (!text) return;
     if (!reusedToken) {
       token.content = text;
-      parts.push(token);
+      target.push(token);
       reusedToken = true;
       return;
     }
-    parts.push(clone_text_token(TokenConstructor, token, text));
+    target.push(clone_text_token(TokenConstructor, token, text));
   }
 
   for (var pos = 0; pos < content.length; pos++) {
@@ -388,13 +384,11 @@ function split_text_token(token) {
 
     if (pos > start) push_text_part(content.slice(start, pos));
 
-    parts.push(create_softbreak_token(TokenConstructor, token));
+    target.push(create_softbreak_token(TokenConstructor, token));
     start = pos + 1;
   }
 
   if (start < content.length) push_text_part(content.slice(start));
-
-  return parts;
 }
 
 

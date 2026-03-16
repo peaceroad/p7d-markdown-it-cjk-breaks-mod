@@ -11,7 +11,7 @@ This repository powers the `markdown-it-cjk-breaks` plugin. The notes below focu
    - `cjk_breaks_plugin` guards against missing `md.core.ruler` and registers a single core rule named `cjk_breaks`. All heavy lifting happens during this pass over inline tokens.
 3. **Inline preprocessing**
    - For each inline token list, `process_inlines` optionally calls `normalize_text_tokens`, rebuilding token lists to split newline-containing text nodes back into `softbreak` tokens so downstream logic has consistent boundaries.
-   - Utility helpers (`split_text_token`, `clone_text_token`, `create_softbreak_token`) preserve token metadata (levels, attrs, meta) when rewriting nodes via `copy_token_base`.
+   - Utility helpers (`append_split_text_token`, `clone_text_token`, `create_softbreak_token`) preserve token metadata (levels, attrs, meta) when rewriting nodes via `copy_token_base`.
 4. **Line-break suppression**
    - The main loop inspects each `softbreak` or newline-only `text` token using a running last-text snapshot plus `build_next_text_info` (built lazily on the first break; skipped-empty flags are tracked only when `considerInlineBoundaries` is enabled).
    - `get_cjk_width_class` short-circuits ASCII ranges, while `process_inlines` caches width classes per pass (lazily initialized when non-ASCII appears) to reduce `eastAsianWidth` calls.
@@ -27,7 +27,7 @@ This repository powers the `markdown-it-cjk-breaks` plugin. The notes below focu
    - `derive_after_fragment` can return candidate fragments (e.g., inline code markup, link/autolink markup) to improve raw matching.
    - `find_next_visible_token` reports both `hasActiveBreak` and accumulated `betweenMarkup`, so visible-token discovery, break-presence checks, and middle-markup collection are done in one pass.
    - `insert_space_token` abstracts whitespace injection.
-   - `split_text_token` can reuse the original `text` token for one retained text segment, reducing allocations when `normalizeSoftBreaks` is enabled.
+   - `append_split_text_token` can reuse the original `text` token for one retained text segment and appends split results directly into the target array, reducing allocations when `normalizeSoftBreaks` is enabled.
 
 ## reminders
 - Keep `index.js` independent from strong-ja rule ordering; coordination belongs in `@peaceroad/markdown-it-strong-ja`.
