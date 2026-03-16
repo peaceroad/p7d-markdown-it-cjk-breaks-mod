@@ -475,25 +475,24 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
 function raw_boundary_includes_newline(source, beforeFragment, betweenFragment, afterFragment, state) {
   if (!source || !afterFragment) return false;
   if (!beforeFragment) return false;
-  betweenFragment = betweenFragment || '';
-  if (Array.isArray(afterFragment)) {
-    for (var i = 0; i < afterFragment.length; i++) {
-      var fragment = afterFragment[i];
-      if (!fragment) continue;
-      var candidate = beforeFragment + betweenFragment + '\n' + fragment;
-      var startPos = source.indexOf(candidate, state.pos);
-      if (startPos === -1) continue;
-      state.pos = startPos + candidate.length - fragment.length;
-      return true;
-    }
-    return false;
+  var beforeBoundary = betweenFragment ? beforeFragment + betweenFragment : beforeFragment;
+  var newlinePositions = get_newline_positions(source, state);
+  var startIndex = state.newlineIndex || 0;
+
+  while (startIndex < newlinePositions.length && newlinePositions[startIndex] < state.pos) {
+    startIndex++;
   }
-  var fragment = afterFragment;
-  var candidate = beforeFragment + betweenFragment + '\n' + fragment;
-  var startPos = source.indexOf(candidate, state.pos);
-  if (startPos === -1) return false;
-  state.pos = startPos + candidate.length - fragment.length;
-  return true;
+  state.newlineIndex = startIndex;
+
+  for (var idx = startIndex; idx < newlinePositions.length; idx++) {
+    var newlinePos = newlinePositions[idx];
+    if (!matches_raw_newline_boundary(source, newlinePos, beforeBoundary, afterFragment)) continue;
+    state.pos = newlinePos + 1;
+    state.newlineIndex = idx + 1;
+    return true;
+  }
+
+  return false;
 }
 
 
@@ -514,6 +513,33 @@ function find_next_visible_token(tokens, startIdx) {
     return { index: idx, token: token, fragment: fragment, hasActiveBreak: hasActiveBreak, betweenMarkup: betweenMarkup };
   }
   return null;
+}
+
+
+function get_newline_positions(source, state) {
+  if (state.newlinePositions) return state.newlinePositions;
+  var newlinePositions = [];
+  for (var idx = 0; idx < source.length; idx++) {
+    if (source.charCodeAt(idx) === 0x0A) newlinePositions.push(idx);
+  }
+  state.newlinePositions = newlinePositions;
+  return newlinePositions;
+}
+
+
+function matches_raw_newline_boundary(source, newlinePos, beforeBoundary, afterFragment) {
+  var beforeStart = newlinePos - beforeBoundary.length;
+  if (beforeStart < 0) return false;
+  if (!source.startsWith(beforeBoundary, beforeStart)) return false;
+  var afterStart = newlinePos + 1;
+  if (Array.isArray(afterFragment)) {
+    for (var i = 0; i < afterFragment.length; i++) {
+      var fragment = afterFragment[i];
+      if (fragment && source.startsWith(fragment, afterStart)) return true;
+    }
+    return false;
+  }
+  return source.startsWith(afterFragment, afterStart);
 }
 
 

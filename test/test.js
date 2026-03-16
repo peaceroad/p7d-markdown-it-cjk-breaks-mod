@@ -207,6 +207,20 @@ pass = runDirectTest(
   pass
 );
 pass = runDirectTest(
+  'direct-repeated-inline-html-spacing',
+  mdSpaceHalfEither,
+  '漢！\n<span>甲</span>\n漢？\n<span>乙</span>',
+  '<p>漢！ <span>甲</span>漢？ <span>乙</span></p>\n',
+  pass
+);
+pass = runDirectTest(
+  'direct-repeated-inline-code-spacing',
+  mdSpaceHalfEither,
+  '漢！\n`a`\n漢？\n`b`',
+  '<p>漢！ <code>a</code>漢？ <code>b</code></p>\n',
+  pass
+);
+pass = runDirectTest(
   'direct-crlf-normalize-softbreaks',
   mdEitherNormalize,
   '**漢**\r\nb',
