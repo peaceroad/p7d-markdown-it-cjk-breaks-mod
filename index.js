@@ -6,6 +6,7 @@ const ASCII_PRINTABLE_MAX = 0x7E;
 const IDEOGRAPHIC_SPACE = '\u3000';
 const DEFAULT_PUNCTUATION_TARGETS = ['！', '？', '⁉', '！？', '？！', '!?', '?!', '.', ':'];
 const DEFAULT_PUNCTUATION_CONFIG = create_punctuation_config(DEFAULT_PUNCTUATION_TARGETS);
+const INSTALL_FLAG = Symbol.for('@peaceroad/markdown-it-cjk-breaks-mod/installed');
 /* eslint-disable max-len */
 // require('unicode-10.0.0/Script/Hangul/regex')
 const HANGUL_RE = /[\u1100-\u11FF\u302E\u302F\u3131-\u318E\u3200-\u321E\u3260-\u327E\uA960-\uA97C\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uFFA0-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]/;
@@ -63,6 +64,13 @@ function resolve_punctuation_space_option(opts) {
 }
 
 
+function normalize_punctuation_target_list(value) {
+  if (typeof value === 'string') return value.length > 0 ? [ value ] : [];
+  if (Array.isArray(value)) return value;
+  return [];
+}
+
+
 function resolve_punctuation_targets(opts) {
   if (!opts) return DEFAULT_PUNCTUATION_CONFIG;
 
@@ -79,36 +87,25 @@ function resolve_punctuation_targets(opts) {
   } else {
     var customTargets = opts.spaceAfterPunctuationTargets;
     if (customTargets === null || customTargets === false) return null;
-    if (typeof customTargets === 'string') {
-      if (customTargets.length === 0) return null;
-      baseTargets = [ customTargets ];
-    } else if (Array.isArray(customTargets)) {
-      if (customTargets.length === 0) return null;
-      baseTargets = customTargets;
+    var customList = normalize_punctuation_target_list(customTargets);
+    if (customList.length > 0) {
+      baseTargets = customList;
+    } else if (typeof customTargets === 'string' || Array.isArray(customTargets)) {
+      return null;
     } else {
       baseTargets = DEFAULT_PUNCTUATION_TARGETS;
     }
   }
 
   if (addTargets !== undefined) {
-    var addList = [];
-    if (typeof addTargets === 'string') {
-      if (addTargets.length > 0) addList = [ addTargets ];
-    } else if (Array.isArray(addTargets)) {
-      addList = addTargets;
-    }
+    var addList = normalize_punctuation_target_list(addTargets);
     if (addList.length > 0) {
       baseTargets = baseTargets.concat(addList);
     }
   }
 
   if (removeTargets !== undefined) {
-    var removeList = [];
-    if (typeof removeTargets === 'string') {
-      if (removeTargets.length > 0) removeList = [ removeTargets ];
-    } else if (Array.isArray(removeTargets)) {
-      removeList = removeTargets;
-    }
+    var removeList = normalize_punctuation_target_list(removeTargets);
     if (removeList.length > 0) {
       var removeConfig = create_punctuation_config(removeList);
       if (removeConfig.sequences.size > 0) {
@@ -217,7 +214,7 @@ function process_inlines(tokens, ctx, inlineToken) {
   var punctuationSpace = ctx.punctuationSpace;
   var punctuationConfig = ctx.punctuationConfig;
   var considerInlineBoundaries = ctx.considerInlineBoundaries;
-  var needsPunctuation = punctuationSpace && punctuationConfig && ctx.maxPunctuationLength > 0;
+  var needsPunctuation = punctuationSpace && punctuationConfig && punctuationConfig.maxLength > 0;
   var punctuationEndCharMap = punctuationConfig ? punctuationConfig.endCharMap : null;
 
   if (!tokens || tokens.length === 0) return;
@@ -232,8 +229,7 @@ function process_inlines(tokens, ctx, inlineToken) {
     if (!widthCache) widthCache = Object.create(null);
     var cached = widthCache[ch];
     if (cached !== undefined) return cached;
-    var width = eastAsianWidth(ch);
-    width = width === 'F' || width === 'W' || width === 'H' ? width : '';
+    var width = get_cjk_width_class(ch);
     widthCache[ch] = width;
     return width;
   }
@@ -659,6 +655,9 @@ function is_markup_closer_char(ch) {
 
 
 export default function cjk_breaks_plugin(md, opts) {
+  if (!md || !md.core || !md.core.ruler) return;
+  if (md[INSTALL_FLAG]) return;
+
   var options = opts || {};
   var punctuationSpace = resolve_punctuation_space_option(options);
   var punctuationConfig = punctuationSpace ? resolve_punctuation_targets(options) : null;
@@ -667,16 +666,20 @@ export default function cjk_breaks_plugin(md, opts) {
     normalizeSoftBreaks: !!options.normalizeSoftBreaks,
     considerInlineBoundaries: !options.normalizeSoftBreaks,
     punctuationSpace: punctuationSpace,
-    punctuationConfig: punctuationConfig,
-    maxPunctuationLength: punctuationConfig ? punctuationConfig.maxLength : 0
+    punctuationConfig: punctuationConfig
   };
 
   function cjk_breaks(state) {
+    if (!state || !state.src || state.src.indexOf('\n') === -1) return;
     for (var blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
-      if (state.tokens[blkIdx].type !== 'inline') continue;
-      process_inlines(state.tokens[blkIdx].children, ctx, state.tokens[blkIdx]);
+      var inlineToken = state.tokens[blkIdx];
+      if (inlineToken.type !== 'inline') continue;
+      if (!inlineToken.children || inlineToken.children.length === 0) continue;
+      if (!inlineToken.content || inlineToken.content.indexOf('\n') === -1) continue;
+      process_inlines(inlineToken.children, ctx, inlineToken);
     }
   }
-  if (!md || !md.core || !md.core.ruler) return;
+
+  md[INSTALL_FLAG] = true;
   md.core.ruler.push('cjk_breaks', cjk_breaks);
 }

@@ -10,7 +10,8 @@
   "license": "MIT",
   "author": "peaceroad <peaceroad@gmail.com>",
   "scripts": {
-    "test": "node test/test.js"
+    "test": "node test/test.js",
+    "bench": "node scripts/bench.js"
   },
   "files": [
     "index.js",

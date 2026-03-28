@@ -176,6 +176,18 @@ const runDirectTest = (name, processor, markdown, html, pass) => {
   return pass;
 };
 
+const runAssertionTest = (name, assertion, pass) => {
+  console.log('===========================================================');
+  console.log(name);
+  try {
+    assertion();
+  } catch (e) {
+    pass = false;
+    console.log(e && e.stack ? e.stack : e);
+  }
+  return pass;
+};
+
 let pass = true;
 pass = runTest(md, testData.standard, pass);
 pass = runTest(mdHtmlFalse, testData.htmlFalse, pass);
@@ -234,6 +246,15 @@ pass = runDirectTest(
   '<p><strong>Hello!?</strong> 漢？ 終</p>\n',
   pass
 );
+pass = runAssertionTest('duplicate-use-first-install-wins', () => {
+  const mdDuplicateUse = mdit({ html: true }).use(cjkBreaks);
+  const ruleCountAfterFirstUse = mdDuplicateUse.core.ruler.getRules('').length;
+
+  mdDuplicateUse.use(cjkBreaks, { either: true, spaceAfterPunctuation: 'half' });
+
+  assert.strictEqual(mdDuplicateUse.core.ruler.getRules('').length, ruleCountAfterFirstUse);
+  assert.strictEqual(mdDuplicateUse.render('漢！\nA'), '<p>漢！\nA</p>\n');
+}, pass);
 
 if (pass) {
   console.log('Passed all test.');

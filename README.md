@@ -113,6 +113,7 @@ md.render('**漢**\nb');
 - Module format: ESM (`"type": "module"`).
 - Runtime: works in Node.js ESM environments and browser/VSCode bundling setups that support ESM dependencies.
 - Runtime plugin code uses no Node-only APIs (`fs`, `path`, etc.); those are confined to tests.
+- Plugin installation is `first-install-wins`: repeated `.use(cjkBreaks, newOptions)` on the same `MarkdownIt` instance is ignored. Recreate the instance to change options.
 - For plugin chains that rewrite inline text (for example `@peaceroad/markdown-it-strong-ja`), prefer `normalizeSoftBreaks: true` for stable behavior.
 
 ## Upstream And Credits
