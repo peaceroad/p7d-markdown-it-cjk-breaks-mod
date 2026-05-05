@@ -86,6 +86,22 @@ const mdStrongJaSpaceLate = mdit({ html: true })
     spaceAfterPunctuation: 'half'
   })
   .use(strongJa);
+const mdCollapsedSingleTextSurrogateSpace = mdit({ html: true })
+  .use((mdInstance) => {
+    mdInstance.core.ruler.push('collapse_inline_text_for_test', (state) => {
+      for (const token of state.tokens) {
+        if (token.type !== 'inline' || !token.children) continue;
+        const text = new state.Token('text', '', 0);
+        text.content = token.content.replace(/\n/g, '');
+        token.children = [text];
+      }
+    });
+  })
+  .use(cjkBreaks, {
+    either: true,
+    spaceAfterPunctuation: 'half',
+    spaceAfterPunctuationTargets: ['🈂']
+  });
 
 let __dirname = path.dirname(new URL(import.meta.url).pathname);
 const isWindows = process.platform === 'win32';
@@ -244,6 +260,13 @@ pass = runDirectTest(
   mdStrongJaSpace,
   '**Hello!?**\r\n漢？\n終',
   '<p><strong>Hello!?</strong> 漢？ 終</p>\n',
+  pass
+);
+pass = runDirectTest(
+  'direct-single-text-surrogate-tail-spacing',
+  mdCollapsedSingleTextSurrogateSpace,
+  '🈂\nA',
+  '<p>🈂 A</p>\n',
   pass
 );
 pass = runAssertionTest('duplicate-use-first-install-wins', () => {

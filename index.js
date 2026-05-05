@@ -623,8 +623,9 @@ function extract_visible_tail(raw, maxLength) {
   if (!raw || !maxLength) return '';
   var result = '';
   for (var pos = raw.length; pos > 0 && result.length < maxLength;) {
-    var code = raw.codePointAt(pos - 1);
-    var charLen = code > 0xFFFF ? 2 : 1;
+    var c1 = raw.charCodeAt(pos - 2);
+    var c2 = raw.charCodeAt(pos - 1);
+    var charLen = is_surrogate(c1, c2) ? 2 : 1;
     var ch = raw.slice(pos - charLen, pos);
     pos -= charLen;
     if (WHITESPACE_RE.test(ch)) continue;
