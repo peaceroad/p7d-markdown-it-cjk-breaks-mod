@@ -23,7 +23,7 @@
     "eastasianwidth": "^0.3.0"
   },
   "devDependencies": {
-    "@peaceroad/markdown-it-strong-ja": "^0.8.1",
+    "@peaceroad/markdown-it-strong-ja": "^0.9.1",
     "markdown-it": "^14.1.0"
   }
 }
