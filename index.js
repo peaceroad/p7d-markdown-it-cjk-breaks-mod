@@ -14,8 +14,35 @@ const HANGUL_RE = /[\u1100-\u11FF\u302E\u302F\u3131-\u318E\u3200-\u321E\u3260-\u
 const WHITESPACE_RE = /\s/;
 
 
-function is_surrogate(c1, c2) {
-  return c1 >= 0xD800 && c1 <= 0xDBFF && c2 >= 0xDC00 && c2 <= 0xDFFF;
+function is_high_surrogate(code) {
+  return code >= 0xD800 && code <= 0xDBFF;
+}
+
+
+function is_low_surrogate(code) {
+  return code >= 0xDC00 && code <= 0xDFFF;
+}
+
+
+function get_char_before(text, pos) {
+  if (!text || pos <= 0) return '';
+  var c2 = text.charCodeAt(pos - 1);
+  if (is_low_surrogate(c2) && pos > 1) {
+    var c1 = text.charCodeAt(pos - 2);
+    if (is_high_surrogate(c1)) return text.slice(pos - 2, pos);
+  }
+  return text.slice(pos - 1, pos);
+}
+
+
+function get_char_after(text, pos) {
+  if (!text || pos >= text.length) return '';
+  var c1 = text.charCodeAt(pos);
+  if (is_high_surrogate(c1) && pos + 1 < text.length) {
+    var c2 = text.charCodeAt(pos + 1);
+    if (is_low_surrogate(c2)) return text.slice(pos, pos + 2);
+  }
+  return text.slice(pos, pos + 1);
 }
 
 
@@ -143,12 +170,7 @@ function matches_punctuation_sequence(trailing, punctuationConfig, skipEndCharCh
 
 
 function get_last_char(text) {
-  if (!text) return '';
-  var len = text.length;
-  if (len === 1) return text;
-  var c1 = text.charCodeAt(len - 2);
-  var c2 = text.charCodeAt(len - 1);
-  return is_surrogate(c1, c2) ? text.slice(-2) : text.slice(-1);
+  return get_char_before(text, text ? text.length : 0);
 }
 
 
@@ -173,7 +195,7 @@ function is_fullwidth_or_wide(ch) {
 
 function get_cjk_width_class(ch) {
   if (!ch) return '';
-  if (ch.charCodeAt(0) <= ASCII_PRINTABLE_MAX) return '';
+  if (ch.length === 1 && ch.charCodeAt(0) <= ASCII_PRINTABLE_MAX) return '';
   var width = eastAsianWidth(ch);
   return width === 'F' || width === 'W' || width === 'H' ? width : '';
 }
@@ -208,14 +230,14 @@ function build_next_text_info(tokens, trackSkippedEmpty) {
 
 
 function process_inlines(tokens, ctx, inlineToken) {
-  var i, last, next, c1, c2, remove_break;
+  var i, last, next, remove_break;
   var either = ctx.either;
   var normalizeSoftBreaks = ctx.normalizeSoftBreaks;
   var punctuationSpace = ctx.punctuationSpace;
   var punctuationConfig = ctx.punctuationConfig;
   var considerInlineBoundaries = ctx.considerInlineBoundaries;
   var needsPunctuation = punctuationSpace && punctuationConfig && punctuationConfig.maxLength > 0;
-  var punctuationEndCharMap = punctuationConfig ? punctuationConfig.endCharMap : null;
+  var punctuationEndCharMap = needsPunctuation ? punctuationConfig.endCharMap : null;
 
   if (!tokens || tokens.length === 0) return;
   if (normalizeSoftBreaks) normalize_text_tokens(tokens);
@@ -225,7 +247,7 @@ function process_inlines(tokens, ctx, inlineToken) {
   var widthCache = null;
   function get_cached_width_class(ch) {
     if (!ch) return '';
-    if (ch.charCodeAt(0) <= ASCII_PRINTABLE_MAX) return '';
+    if (ch.length === 1 && ch.charCodeAt(0) <= ASCII_PRINTABLE_MAX) return '';
     if (!widthCache) widthCache = Object.create(null);
     var cached = widthCache[ch];
     if (cached !== undefined) return cached;
@@ -257,17 +279,13 @@ function process_inlines(tokens, ctx, inlineToken) {
       }
 
       if (lastTextContent) {
-        c1 = lastTextContent.charCodeAt(lastTextContent.length - 2);
-        c2 = lastTextContent.charCodeAt(lastTextContent.length - 1);
-        last = lastTextContent.slice(is_surrogate(c1, c2) ? -2 : -1);
+        last = get_last_char(lastTextContent);
       }
 
       var nextIdx = nextTextIndex[i];
       if (nextIdx !== -1) {
         var nextContent = tokens[nextIdx].content;
-        c1 = nextContent.charCodeAt(0);
-        c2 = nextContent.charCodeAt(1);
-        next = nextContent.slice(0, is_surrogate(c1, c2) ? 2 : 1);
+        next = get_char_after(nextContent, 0);
       }
 
       remove_break = false;
@@ -623,11 +641,8 @@ function extract_visible_tail(raw, maxLength) {
   if (!raw || !maxLength) return '';
   var result = '';
   for (var pos = raw.length; pos > 0 && result.length < maxLength;) {
-    var c1 = raw.charCodeAt(pos - 2);
-    var c2 = raw.charCodeAt(pos - 1);
-    var charLen = is_surrogate(c1, c2) ? 2 : 1;
-    var ch = raw.slice(pos - charLen, pos);
-    pos -= charLen;
+    var ch = get_char_before(raw, pos);
+    pos -= ch.length;
     if (WHITESPACE_RE.test(ch)) continue;
     if (is_markup_closer_char(ch)) continue;
     result = ch + result;
@@ -639,10 +654,8 @@ function extract_visible_tail(raw, maxLength) {
 function extract_visible_head(raw) {
   if (!raw) return '';
   for (var pos = 0; pos < raw.length;) {
-    var code = raw.codePointAt(pos);
-    var charLen = code > 0xFFFF ? 2 : 1;
-    var ch = raw.slice(pos, pos + charLen);
-    pos += charLen;
+    var ch = get_char_after(raw, pos);
+    pos += ch.length;
     if (WHITESPACE_RE.test(ch)) continue;
     return ch;
   }

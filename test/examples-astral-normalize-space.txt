@@ -1,0 +1,34 @@
+[Markdown]
+漢？
+𠀋
+
+[HTML]
+<p>漢？ 𠀋</p>
+
+[Markdown]
+漢？
+**𠀋**
+
+[HTML]
+<p>漢？ <strong>𠀋</strong></p>
+
+[Markdown]
+漢？
+`𠀋`
+
+[HTML]
+<p>漢？ <code>𠀋</code></p>
+
+[Markdown]
+漢？
+[𠀋](https://example.com)
+
+[HTML]
+<p>漢？ <a href="https://example.com">𠀋</a></p>
+
+[Markdown]
+漢？
+<span>𠀋</span>
+
+[HTML]
+<p>漢？ <span>𠀋</span></p>

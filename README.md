@@ -103,6 +103,8 @@ md.render('**漢**\nb');
 ## Behavior Notes
 
 - Break suppression follows CSS Text Level 3 style rules used by upstream: ZWSP-adjacent breaks are removed first; otherwise width-class checks are applied with Hangul exclusion.
+- With markdown-it 14.2.0, emphasis/strike delimiter parsing is left to upstream markdown-it, including its code-point-aware astral-character flanking checks. This plugin runs later as a core token transform and keeps parity with plain markdown-it whenever no CJK break is removed.
+- Adjacent inline characters are read as Unicode code points, not as isolated UTF-16 code units. Astral Han characters such as `𠀋` are treated through their East Asian Width class and therefore participate in CJK break suppression. Emoji/symbols are not treated as Japanese/CJK context unconditionally; only the existing `F`/`W`/`H` width-class rule can make them participate.
 - Punctuation spacing is never global formatting. It only runs when this plugin actually removes the break.
 - The second punctuation pass handles inline markup boundaries (inline code, links/autolinks, images, inline HTML) when a raw newline boundary is verifiably present.
 - Matching is fail-closed: if raw boundary reconstruction cannot be proven, no space is inserted.

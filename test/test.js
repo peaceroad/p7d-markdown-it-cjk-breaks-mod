@@ -6,10 +6,16 @@ import strongJa from '@peaceroad/markdown-it-strong-ja';
 
 import cjkBreaks from '../index.js';
 
+const mdPlain = mdit({ html: true });
 const mdHtmlFalse = mdit({ html: false }).use(cjkBreaks);
 const mdHtmlFalseEither = mdit({ html: false }).use(cjkBreaks, { either: true });
 const md = mdit({ html: true }).use(cjkBreaks);
 const mdEither = mdit({ html: true }).use(cjkBreaks, { either: true });
+const mdEitherNormalizeSpace = mdit({ html: true }).use(cjkBreaks, {
+  either: true,
+  normalizeSoftBreaks: true,
+  spaceAfterPunctuation: 'half'
+});
 const mdSpaceHalf = mdit({ html: true }).use(cjkBreaks, { spaceAfterPunctuation: 'half' });
 const mdSpaceFull = mdit({ html: true }).use(cjkBreaks, { spaceAfterPunctuation: 'full' });
 const mdSpaceHalfEither = mdit({ html: true }).use(cjkBreaks, { either: true, spaceAfterPunctuation: 'half' });
@@ -131,7 +137,10 @@ const testData = {
   eitherNormalize: __dirname + path.sep + 'examples-eithere-and-normalizeSoftBreaks.txt',
   strongJa: __dirname + path.sep + 'examples-strongJa-and-normalizeSoftBreaks.txt',
   strongJaSpace: __dirname + path.sep + 'examples-strongJa-all-options.txt',
-  strongJaSpaceLate: __dirname + path.sep + 'examples-strongJa-all-options.txt'
+  strongJaSpaceLate: __dirname + path.sep + 'examples-strongJa-all-options.txt',
+  astralDefault: __dirname + path.sep + 'examples-astral-default.txt',
+  astralEither: __dirname + path.sep + 'examples-astral-either.txt',
+  astralNormalizeSpace: __dirname + path.sep + 'examples-astral-normalize-space.txt'
 };
 
 const getTestData = (pat) => {
@@ -204,11 +213,25 @@ const runAssertionTest = (name, assertion, pass) => {
   return pass;
 };
 
+const runParityTest = (name, processors, cases, pass) => {
+  return runAssertionTest(name, () => {
+    for (const testCase of cases) {
+      const expected = mdPlain.render(testCase);
+      for (const processor of processors) {
+        assert.strictEqual(processor.render(testCase), expected, testCase);
+      }
+    }
+  }, pass);
+};
+
 let pass = true;
 pass = runTest(md, testData.standard, pass);
 pass = runTest(mdHtmlFalse, testData.htmlFalse, pass);
 pass = runTest(mdHtmlFalseEither, testData.htmlFalseEither, pass);
 pass = runTest(mdEither, testData.either, pass);
+pass = runTest(md, testData.astralDefault, pass);
+pass = runTest(mdEither, testData.astralEither, pass);
+pass = runTest(mdEitherNormalizeSpace, testData.astralNormalizeSpace, pass);
 pass = runTest(mdSpaceHalf, testData.spaceHalf, pass);
 pass = runTest(mdSpaceFull, testData.spaceFull, pass);
 pass = runTest(mdSpaceHalfEither, testData.spaceHalfEither, pass);
@@ -267,6 +290,32 @@ pass = runDirectTest(
   mdCollapsedSingleTextSurrogateSpace,
   '🈂\nA',
   '<p>🈂 A</p>\n',
+  pass
+);
+pass = runParityTest(
+  'markdown-it-14.2.0-astral-delimiter-parity',
+  [md, mdEither, mdEitherNormalize, mdSpaceHalfEither],
+  [
+    'a*😀*a',
+    '😀_a_',
+    'a*🈂*a',
+    '🈂_a_',
+    'a*𠀋*a',
+    '𠀋_a_',
+    'a**🂡**a',
+    '🂡__a__'
+  ],
+  pass
+);
+pass = runParityTest(
+  'non-inline-and-non-cjk-boundary-parity',
+  [md, mdEitherNormalize],
+  [
+    'A\nB',
+    '😀\n😃',
+    '```js {#demo}\n𠀋\n漢\n```',
+    '# 𠀋\n\nA\nB'
+  ],
   pass
 );
 pass = runAssertionTest('duplicate-use-first-install-wins', () => {
