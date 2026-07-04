@@ -19,6 +19,10 @@ const mdEitherNormalizeSpace = mdit({ html: true }).use(cjkBreaks, {
 const mdSpaceHalf = mdit({ html: true }).use(cjkBreaks, { spaceAfterPunctuation: 'half' });
 const mdSpaceFull = mdit({ html: true }).use(cjkBreaks, { spaceAfterPunctuation: 'full' });
 const mdSpaceHalfEither = mdit({ html: true }).use(cjkBreaks, { either: true, spaceAfterPunctuation: 'half' });
+const mdLinkifySpaceHalfEither = mdit({ html: true, linkify: true }).use(cjkBreaks, {
+  either: true,
+  spaceAfterPunctuation: 'half'
+});
 const mdSpaceCustomTargets = mdit({ html: true }).use(cjkBreaks, {
   either: true,
   spaceAfterPunctuation: 'half',
@@ -290,6 +294,34 @@ pass = runDirectTest(
   mdCollapsedSingleTextSurrogateSpace,
   '🈂\nA',
   '<p>🈂 A</p>\n',
+  pass
+);
+pass = runDirectTest(
+  'direct-backslash-space-hardbreak-14-3',
+  mdSpaceHalfEither,
+  '漢！\\  \nB',
+  '<p>漢！\\<br>\nB</p>\n',
+  pass
+);
+pass = runDirectTest(
+  'direct-trailing-space-hardbreak-no-punctuation-space',
+  mdSpaceHalfEither,
+  '漢！  \nB',
+  '<p>漢！<br>\nB</p>\n',
+  pass
+);
+pass = runDirectTest(
+  'direct-backslash-newline-hardbreak-no-punctuation-space',
+  mdSpaceHalfEither,
+  '漢！\\\nB',
+  '<p>漢！<br>\nB</p>\n',
+  pass
+);
+pass = runDirectTest(
+  'direct-linkify-backslash-space-hardbreak',
+  mdLinkifySpaceHalfEither,
+  '漢！\\  \nhttps://example.com',
+  '<p>漢！\\<br>\n<a href="https://example.com">https://example.com</a></p>\n',
   pass
 );
 pass = runParityTest(

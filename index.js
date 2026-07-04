@@ -510,7 +510,7 @@ function find_next_visible_token(tokens, startIdx) {
   for (var idx = startIdx; idx < tokens.length; idx++) {
     var token = tokens[idx];
     if (!token) continue;
-    if (!hasActiveBreak && (token.type === 'softbreak' || (token.type === 'text' && token.content === '\n'))) {
+    if (!hasActiveBreak && (token.type === 'softbreak' || token.type === 'hardbreak' || (token.type === 'text' && token.content === '\n'))) {
       hasActiveBreak = true;
     }
     var fragment = derive_after_fragment(token);
