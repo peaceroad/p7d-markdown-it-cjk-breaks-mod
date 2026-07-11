@@ -13,15 +13,16 @@ This repository powers the `markdown-it-cjk-breaks` plugin. The notes below focu
    - For each inline token list, `process_inlines` optionally calls `normalize_text_tokens`, rebuilding token lists to split newline-containing text nodes back into `softbreak` tokens so downstream logic has consistent boundaries.
    - Utility helpers (`append_split_text_token`, `clone_text_token`, `create_softbreak_token`) preserve token metadata (levels, attrs, meta) when rewriting nodes via `copy_token_base`.
 4. **Line-break suppression**
-   - The main loop inspects each `softbreak` or newline-only `text` token using a running last-text snapshot plus `build_next_text_info` (built lazily on the first break; skipped-empty flags are tracked only when `considerInlineBoundaries` is enabled).
+   - The main loop inspects each `softbreak` or newline-only `text` token using a running last-text snapshot plus `build_break_lookahead` (built lazily on the first break). Lookahead arrays are populated only at actual break positions, and skipped-empty flags are allocated only when `considerInlineBoundaries` is enabled.
    - `get_cjk_width_class` short-circuits ASCII ranges, while `process_inlines` caches width classes per pass (lazily initialized when non-ASCII appears) to reduce `eastAsianWidth` calls.
    - Break removal triggers immediately when adjacent to ZWSP (`\u200b`), otherwise removal follows the East Asian width checks (both or either side depending on `either`), excluding Hangul (`is_hangul`).
    - Inline-boundary gaps (caused by removed empty text nodes) can be respected by toggling `considerInlineBoundaries`.
 5. **Punctuation spacing injection**
    - When a break is removed, we only then check whether the trailing fragment matched a target sequence and, if the next glyph is printable ASCII or wide/fullwidth, emit the configured spacing token in place of the break.
    - A second pass (`apply_missing_punctuation_spacing`) ensures punctuation followed by inline markup still receives spacing by scanning ahead to the next visible fragment and verifying that the raw source contained a newline boundary, while skipping cases where a `softbreak` is still present between tokens.
+   - `apply_missing_punctuation_spacing` queues verified insertions, uses descending splices for small edit sets, and rebuilds the token array once for dense edit sets to avoid repeated tail shifts.
    - `apply_missing_punctuation_spacing` short-circuits to `apply_single_text_token_spacing` when the inline children already collapsed to one text token, avoiding an unnecessary scan loop.
-   - `apply_single_text_token_spacing` handles degenerate cases where the entire inline content collapsed into a single text token.
+   - `apply_single_text_token_spacing` handles degenerate cases where the entire inline content collapsed into a single text token and rebuilds its content once when multiple boundaries need spacing.
 6. **Supporting helpers**
    - `raw_boundary_includes_newline` tracks search positions so repeated lookups remain linear-time, consumes precomputed boundary fragments instead of rescanning the token range, and now narrows raw verification to known newline offsets rather than broad substring search.
    - `derive_after_fragment` can return candidate fragments (e.g., inline code markup, link/autolink markup) to improve raw matching.

@@ -4,6 +4,7 @@ const { eastAsianWidth } = eastAsianWidthModule;
 const ASCII_PRINTABLE_MIN = 0x21;
 const ASCII_PRINTABLE_MAX = 0x7E;
 const IDEOGRAPHIC_SPACE = '\u3000';
+const SPACE_INSERTION_REBUILD_THRESHOLD = 32;
 const DEFAULT_PUNCTUATION_TARGETS = ['！', '？', '⁉', '！？', '？！', '!?', '?!', '.', ':'];
 const DEFAULT_PUNCTUATION_CONFIG = create_punctuation_config(DEFAULT_PUNCTUATION_TARGETS);
 const INSTALL_FLAG = Symbol.for('@peaceroad/markdown-it-cjk-breaks-mod/installed');
@@ -200,19 +201,23 @@ function get_cjk_width_class(ch) {
   return width === 'F' || width === 'W' || width === 'H' ? width : '';
 }
 
-function build_next_text_info(tokens, trackSkippedEmpty) {
-  var nextTextIndex = new Array(tokens.length);
+
+function build_break_lookahead(tokens, trackSkippedEmpty) {
+  var nextTextIndexes = new Array(tokens.length);
   var nextSkippedEmpty = trackSkippedEmpty ? new Array(tokens.length) : null;
   var nextNonEmpty = -1;
   var sawEmpty = false;
 
   for (var idx = tokens.length - 1; idx >= 0; idx--) {
-    nextTextIndex[idx] = nextNonEmpty;
-    if (trackSkippedEmpty) nextSkippedEmpty[idx] = sawEmpty;
-
     var token = tokens[idx];
-    if (!token || token.type !== 'text') continue;
+    if (!token) continue;
 
+    if (token.type === 'softbreak' || (token.type === 'text' && token.content === '\n')) {
+      nextTextIndexes[idx] = nextNonEmpty;
+      if (trackSkippedEmpty) nextSkippedEmpty[idx] = sawEmpty;
+    }
+
+    if (token.type !== 'text') continue;
     if (!token.content) {
       sawEmpty = true;
       continue;
@@ -223,11 +228,10 @@ function build_next_text_info(tokens, trackSkippedEmpty) {
   }
 
   return {
-    nextTextIndex: nextTextIndex,
+    nextTextIndexes: nextTextIndexes,
     nextSkippedEmpty: nextSkippedEmpty
   };
 }
-
 
 function process_inlines(tokens, ctx, inlineToken) {
   var i, last, next, remove_break;
@@ -242,7 +246,7 @@ function process_inlines(tokens, ctx, inlineToken) {
   if (!tokens || tokens.length === 0) return;
   if (normalizeSoftBreaks) normalize_text_tokens(tokens);
 
-  var nextTextIndex = null;
+  var nextTextIndexes = null;
   var nextSkippedEmpty = null;
   var widthCache = null;
   function get_cached_width_class(ch) {
@@ -264,9 +268,9 @@ function process_inlines(tokens, ctx, inlineToken) {
     var isSoftbreakToken = token.type === 'softbreak';
     var isTextBreakToken = token.type === 'text' && token.content === '\n';
     if (isSoftbreakToken || isTextBreakToken) {
-      if (!nextTextIndex) {
-        var nextInfo = build_next_text_info(tokens, considerInlineBoundaries);
-        nextTextIndex = nextInfo.nextTextIndex;
+      if (!nextTextIndexes) {
+        var nextInfo = build_break_lookahead(tokens, considerInlineBoundaries);
+        nextTextIndexes = nextInfo.nextTextIndexes;
         nextSkippedEmpty = nextInfo.nextSkippedEmpty;
       }
       // default last/next character to space
@@ -275,14 +279,14 @@ function process_inlines(tokens, ctx, inlineToken) {
       var skippedEmptyAfter = false;
       if (considerInlineBoundaries) {
         skippedEmptyBefore = sawEmptySinceLast;
-        skippedEmptyAfter = nextSkippedEmpty ? nextSkippedEmpty[i] : false;
+        skippedEmptyAfter = nextSkippedEmpty[i];
       }
 
       if (lastTextContent) {
         last = get_last_char(lastTextContent);
       }
 
-      var nextIdx = nextTextIndex[i];
+      var nextIdx = nextTextIndexes[i];
       if (nextIdx !== -1) {
         var nextContent = tokens[nextIdx].content;
         next = get_char_after(nextContent, 0);
@@ -438,10 +442,6 @@ function copy_token_base(target, source) {
 
 
 function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace, punctuationConfig) {
-  if (!inlineToken || !inlineToken.content) return;
-  if (inlineToken.content.indexOf('\n') === -1) return;
-  if (!tokens || tokens.length === 0) return;
-  if (punctuationConfig.maxLength <= 0) return;
   var endCharMap = punctuationConfig.endCharMap;
 
   if (tokens.length === 1) {
@@ -449,7 +449,8 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     return;
   }
 
-  var rawSearchState = { pos: 0 };
+  var rawSearchState = null;
+  var pendingInsertions = null;
 
   for (var idx = 0; idx < tokens.length; idx++) {
     var current = tokens[idx];
@@ -464,6 +465,7 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
     if (nextInfo.token.type === 'text' && has_leading_whitespace(nextInfo.token.content)) continue;
     if (nextInfo.hasActiveBreak) continue;
 
+    if (!rawSearchState) rawSearchState = { pos: 0 };
     if (!raw_boundary_includes_newline(
       inlineToken.content,
       current.content,
@@ -474,10 +476,19 @@ function apply_missing_punctuation_spacing(tokens, inlineToken, punctuationSpace
       continue;
     }
 
-    insert_space_token(tokens, nextInfo.index, nextInfo.token, punctuationSpace);
-    idx = nextInfo.index;
+    if (!pendingInsertions) {
+      pendingInsertions = nextInfo;
+    } else if (Array.isArray(pendingInsertions)) {
+      pendingInsertions.push(nextInfo);
+    } else {
+      pendingInsertions = [ pendingInsertions, nextInfo ];
+    }
+    // Continue with the visible token. Insertions are applied after the scan so
+    // repeated boundaries do not shift the remaining token-array tail.
+    idx = nextInfo.index - 1;
   }
 
+  apply_space_insertions(tokens, pendingInsertions, punctuationSpace);
 }
 
 function raw_boundary_includes_newline(source, beforeFragment, betweenFragment, afterFragment, state) {
@@ -572,9 +583,12 @@ function derive_after_fragment(token) {
 
 
 function insert_space_token(tokens, insertIndex, referenceToken, punctuationSpace) {
-  if (!punctuationSpace) return;
-  var TokenConstructor = (referenceToken && referenceToken.constructor) || (tokens[0] && tokens[0].constructor);
-  if (!TokenConstructor) return;
+  tokens.splice(insertIndex, 0, create_space_token(referenceToken, punctuationSpace));
+}
+
+
+function create_space_token(referenceToken, punctuationSpace) {
+  var TokenConstructor = referenceToken.constructor;
   var spaceToken = new TokenConstructor('text', '', 0);
   spaceToken.content = punctuationSpace;
   spaceToken.markup = '';
@@ -582,28 +596,57 @@ function insert_space_token(tokens, insertIndex, referenceToken, punctuationSpac
   spaceToken.tag = '';
   spaceToken.block = false;
   spaceToken.hidden = false;
-  spaceToken.level = referenceToken ? referenceToken.level : 0;
-  spaceToken.meta = referenceToken && referenceToken.meta ? Object.assign({}, referenceToken.meta) : referenceToken ? referenceToken.meta : null;
+  spaceToken.level = referenceToken.level;
+  spaceToken.meta = referenceToken.meta ? Object.assign({}, referenceToken.meta) : referenceToken.meta;
   spaceToken.children = null;
   spaceToken.attrs = null;
   spaceToken.map = null;
-  tokens.splice(insertIndex, 0, spaceToken);
+  return spaceToken;
+}
+
+
+function apply_space_insertions(tokens, insertions, punctuationSpace) {
+  if (!insertions) return;
+  if (!Array.isArray(insertions)) {
+    insert_space_token(tokens, insertions.index, insertions.token, punctuationSpace);
+    return;
+  }
+  // Descending splices are cheaper for a few local edits; dense edits are
+  // rebuilt once so each remaining token is moved at most once.
+  if (insertions.length < SPACE_INSERTION_REBUILD_THRESHOLD) {
+    for (var reverseIdx = insertions.length - 1; reverseIdx >= 0; reverseIdx--) {
+      var insertion = insertions[reverseIdx];
+      insert_space_token(tokens, insertion.index, insertion.token, punctuationSpace);
+    }
+    return;
+  }
+
+  var rebuilt = [];
+  var insertionIndex = 0;
+  for (var idx = 0; idx < tokens.length; idx++) {
+    if (insertionIndex < insertions.length && insertions[insertionIndex].index === idx) {
+      var pending = insertions[insertionIndex];
+      rebuilt.push(create_space_token(pending.token, punctuationSpace));
+      insertionIndex++;
+    }
+    rebuilt.push(tokens[idx]);
+  }
+
+  tokens.length = 0;
+  for (var outIdx = 0; outIdx < rebuilt.length; outIdx++) {
+    tokens.push(rebuilt[outIdx]);
+  }
 }
 
 
 function apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, punctuationConfig) {
-  if (!inlineToken || !inlineToken.content) return;
-  if (!tokens || tokens.length !== 1) return;
-  if (inlineToken.content.indexOf('\n') === -1) return;
   var token = tokens[0];
   if (!token || token.type !== 'text' || !token.content) return;
   var maxPunctuationLength = punctuationConfig.maxLength;
-  if (maxPunctuationLength <= 0) return;
 
   var segments = inlineToken.content.split('\n');
   var cumulativeLength = 0;
-  var offsetDelta = 0;
-  var updatedContent = token.content;
+  var insertionPositions = null;
   for (var segIdx = 0; segIdx < segments.length - 1; segIdx++) {
     var leftRaw = segments[segIdx];
     var rightRaw = segments[segIdx + 1];
@@ -615,25 +658,35 @@ function apply_single_text_token_spacing(tokens, inlineToken, punctuationSpace, 
       (is_printable_ascii(nextChar) || is_fullwidth_or_wide(nextChar));
 
     if (shouldInsert) {
-      var splitIndex = cumulativeLength + leftRaw.length + offsetDelta;
-      if (splitIndex >= 0 && splitIndex <= updatedContent.length) {
-        var existingChar = updatedContent.charAt(splitIndex);
-        if (existingChar && WHITESPACE_RE.test(existingChar)) {
-          // already has whitespace at this boundary
-          cumulativeLength += leftRaw.length;
-          continue;
+      var splitIndex = cumulativeLength + leftRaw.length;
+      if (splitIndex <= token.content.length) {
+        var existingChar = token.content.charAt(splitIndex);
+        if (!existingChar || !WHITESPACE_RE.test(existingChar)) {
+          if (!insertionPositions) insertionPositions = [];
+          insertionPositions.push(splitIndex);
         }
-        updatedContent = updatedContent.slice(0, splitIndex) + punctuationSpace + updatedContent.slice(splitIndex);
-        offsetDelta += punctuationSpace.length;
       }
     }
 
     cumulativeLength += leftRaw.length;
   }
 
-  if (offsetDelta > 0) {
-    token.content = updatedContent;
+  if (!insertionPositions) return;
+  if (insertionPositions.length === 1) {
+    var onlyPosition = insertionPositions[0];
+    token.content = token.content.slice(0, onlyPosition) + punctuationSpace + token.content.slice(onlyPosition);
+    return;
   }
+
+  var rebuilt = [];
+  var contentStart = 0;
+  for (var positionIdx = 0; positionIdx < insertionPositions.length; positionIdx++) {
+    var position = insertionPositions[positionIdx];
+    rebuilt.push(token.content.slice(contentStart, position), punctuationSpace);
+    contentStart = position;
+  }
+  rebuilt.push(token.content.slice(contentStart));
+  token.content = rebuilt.join('');
 }
 
 

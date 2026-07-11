@@ -68,9 +68,17 @@ function build_corpus() {
     }
   }
 
+  var denseNewlineLines = [];
+  for (var lineIdx = 0; lineIdx < 800; lineIdx++) {
+    if (lineIdx % 3 === 0) denseNewlineLines.push('漢！');
+    else if (lineIdx % 3 === 1) denseNewlineLines.push('**字**');
+    else denseNewlineLines.push('`A`');
+  }
+
   return {
     newline: newlineDocs,
-    noNewline: expandedNoNewlineDocs
+    noNewline: expandedNoNewlineDocs,
+    denseNewline: [ denseNewlineLines.join('\n') ]
   };
 }
 
@@ -108,24 +116,39 @@ function median(values) {
   return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-function benchmark(md, docs) {
-  for (var warm = 0; warm < warmup; warm++) {
-    render_batch(md, docs);
+function benchmark_processors(processors, docs) {
+  for (var procIdx = 0; procIdx < processors.length; procIdx++) {
+    for (var warm = 0; warm < warmup; warm++) {
+      render_batch(processors[procIdx].md, docs);
+    }
   }
 
-  var timings = [];
+  var timings = Object.create(null);
+  for (var initIdx = 0; initIdx < processors.length; initIdx++) {
+    timings[processors[initIdx].name] = [];
+  }
+
   for (var idx = 0; idx < iterations; idx++) {
-    var start = performance.now();
-    render_batch(md, docs);
-    timings.push(performance.now() - start);
+    for (var orderIdx = 0; orderIdx < processors.length; orderIdx++) {
+      var processorIndex = idx % 2 === 0 ? orderIdx : processors.length - orderIdx - 1;
+      var processor = processors[processorIndex];
+      var start = performance.now();
+      render_batch(processor.md, docs);
+      timings[processor.name].push(performance.now() - start);
+    }
   }
 
-  var medianMs = median(timings);
+  var results = Object.create(null);
+  for (var resultIdx = 0; resultIdx < processors.length; resultIdx++) {
+    var current = processors[resultIdx];
+    var medianMs = median(timings[current.name]);
+    results[current.name] = {
+      medianMs: medianMs,
+      perRenderUs: (medianMs * 1000) / docs.length
+    };
+  }
 
-  return {
-    medianMs: medianMs,
-    perRenderUs: (medianMs * 1000) / docs.length
-  };
+  return results;
 }
 
 function main() {
@@ -135,6 +158,7 @@ function main() {
   console.log('Benchmark corpus');
   console.log('newline docs   :', corpus.newline.length);
   console.log('no-newline docs:', corpus.noNewline.length);
+  console.log('dense docs     :', corpus.denseNewline.length);
   console.log('warmup         :', warmup);
   console.log('iterations     :', iterations);
 
@@ -142,10 +166,11 @@ function main() {
   for (var corpusIdx = 0; corpusIdx < corpusNames.length; corpusIdx++) {
     var corpusName = corpusNames[corpusIdx];
     var docs = corpus[corpusName];
+    var results = benchmark_processors(processors, docs);
     console.log('\n[' + corpusName + ']');
     for (var procIdx = 0; procIdx < processors.length; procIdx++) {
       var processor = processors[procIdx];
-      var result = benchmark(processor.md, docs);
+      var result = results[processor.name];
       console.log(
         processor.name.padEnd(16) +
         ' median=' + result.medianMs.toFixed(2).padStart(8) + ' ms' +

@@ -112,6 +112,23 @@ const mdCollapsedSingleTextSurrogateSpace = mdit({ html: true })
     spaceAfterPunctuation: 'half',
     spaceAfterPunctuationTargets: ['🈂']
   });
+const mdRemovedBreaksSpace = mdit({ html: true })
+  .use((mdInstance) => {
+    mdInstance.core.ruler.push('remove_softbreaks_for_test', (state) => {
+      for (const token of state.tokens) {
+        if (token.type !== 'inline' || !token.children) continue;
+        for (const child of token.children) {
+          if (child.type !== 'softbreak') continue;
+          child.type = 'text';
+          child.content = '';
+        }
+      }
+    });
+  })
+  .use(cjkBreaks, {
+    either: true,
+    spaceAfterPunctuation: 'half'
+  });
 
 let __dirname = path.dirname(new URL(import.meta.url).pathname);
 const isWindows = process.platform === 'win32';
@@ -296,6 +313,24 @@ pass = runDirectTest(
   '<p>🈂 A</p>\n',
   pass
 );
+const repeatedInlineCodeSource = Array.from({ length: 40 }, () => '漢！\n`A`').join('');
+const repeatedInlineCodeHtml = '<p>' + Array.from({ length: 40 }, () => '漢！ <code>A</code>').join('') + '</p>\n';
+pass = runDirectTest(
+  'direct-batched-inline-token-spacing',
+  mdRemovedBreaksSpace,
+  repeatedInlineCodeSource,
+  repeatedInlineCodeHtml,
+  pass
+);
+const repeatedCollapsedSource = Array.from({ length: 40 }, () => '🈂\nA').join('\n');
+const repeatedCollapsedHtml = '<p>' + Array.from({ length: 40 }, () => '🈂 A').join('') + '</p>\n';
+pass = runDirectTest(
+  'direct-batched-single-text-spacing',
+  mdCollapsedSingleTextSurrogateSpace,
+  repeatedCollapsedSource,
+  repeatedCollapsedHtml,
+  pass
+);
 pass = runDirectTest(
   'direct-backslash-space-hardbreak-14-3',
   mdSpaceHalfEither,
@@ -358,6 +393,92 @@ pass = runAssertionTest('duplicate-use-first-install-wins', () => {
 
   assert.strictEqual(mdDuplicateUse.core.ruler.getRules('').length, ruleCountAfterFirstUse);
   assert.strictEqual(mdDuplicateUse.render('漢！\nA'), '<p>漢！\nA</p>\n');
+}, pass);
+pass = runAssertionTest('punctuation-option-resolution-matrix', () => {
+  const source = '漢！\nA';
+  const renderWith = (options) => mdit({ html: true })
+    .use(cjkBreaks, { either: true, ...options })
+    .render(source);
+  const withoutSpace = '<p>漢！A</p>\n';
+
+  assert.strictEqual(renderWith({}), withoutSpace);
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: false }), withoutSpace);
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 1 }), withoutSpace);
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: '--' }), '<p>漢！--A</p>\n');
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 'half' }), '<p>漢！ A</p>\n');
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 'full' }), '<p>漢！　A</p>\n');
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 'half', spaceAfterPunctuationTargets: '！' }), '<p>漢！ A</p>\n');
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 'half', spaceAfterPunctuationTargets: '' }), withoutSpace);
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 'half', spaceAfterPunctuationTargets: [] }), withoutSpace);
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 'half', spaceAfterPunctuationTargets: null }), withoutSpace);
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 'half', spaceAfterPunctuationTargets: false }), withoutSpace);
+  assert.strictEqual(renderWith({ spaceAfterPunctuation: 'half', spaceAfterPunctuationTargets: ['?'] }), withoutSpace);
+  assert.strictEqual(renderWith({
+    spaceAfterPunctuation: 'half',
+    spaceAfterPunctuationTargets: ['?'],
+    spaceAfterPunctuationTargetsAdd: '！'
+  }), '<p>漢！ A</p>\n');
+  assert.strictEqual(renderWith({
+    spaceAfterPunctuation: 'half',
+    spaceAfterPunctuationTargets: ['！'],
+    spaceAfterPunctuationTargetsAdd: ['！'],
+    spaceAfterPunctuationTargetsRemove: '！'
+  }), withoutSpace);
+}, pass);
+pass = runAssertionTest('boundary-classification-matrix', () => {
+  const defaultProcessor = mdit({ html: true }).use(cjkBreaks);
+  const eitherProcessor = mdit({ html: true }).use(cjkBreaks, { either: true });
+
+  assert.strictEqual(defaultProcessor.render('漢\n字'), '<p>漢字</p>\n');
+  assert.strictEqual(defaultProcessor.render('ｱ\n漢'), '<p>ｱ漢</p>\n');
+  assert.strictEqual(defaultProcessor.render('𠀋\n漢'), '<p>𠀋漢</p>\n');
+  assert.strictEqual(defaultProcessor.render('A\n漢'), '<p>A\n漢</p>\n');
+  assert.strictEqual(eitherProcessor.render('A\n漢'), '<p>A漢</p>\n');
+  assert.strictEqual(defaultProcessor.render('A\u200b\nB'), '<p>A\u200bB</p>\n');
+  assert.strictEqual(defaultProcessor.render('A\n\u200bB'), '<p>A\u200bB</p>\n');
+  assert.strictEqual(defaultProcessor.render('漢\n가'), '<p>漢\n가</p>\n');
+  assert.strictEqual(defaultProcessor.render('가\n漢'), '<p>가\n漢</p>\n');
+  assert.strictEqual(eitherProcessor.render('가\nA'), '<p>가\nA</p>\n');
+  assert.strictEqual(eitherProcessor.render('😀\nA'), '<p>😀\nA</p>\n');
+}, pass);
+pass = runAssertionTest('normalize-softbreak-token-metadata', () => {
+  const metadataProcessor = mdit({ html: true })
+    .use((mdInstance) => {
+      mdInstance.core.ruler.push('inject_newline_text_for_test', (state) => {
+        const inline = state.tokens.find((token) => token.type === 'inline');
+        const text = new state.Token('text', 'source-tag', 0);
+        text.content = 'A\nB';
+        text.level = 3;
+        text.meta = { source: 'test' };
+        text.attrs = [['data-source', 'test']];
+        text.map = [4, 6];
+        text.block = true;
+        text.hidden = true;
+        text.info = 'source-info';
+        inline.children = [text];
+      });
+    })
+    .use(cjkBreaks, { normalizeSoftBreaks: true });
+
+  const inline = metadataProcessor.parse('A\nB').find((token) => token.type === 'inline');
+  assert.deepStrictEqual(inline.children.map((token) => token.type), ['text', 'softbreak', 'text']);
+  assert.deepStrictEqual(inline.children.map((token) => token.tag), ['source-tag', '', 'source-tag']);
+  assert.deepStrictEqual(inline.children.map((token) => token.nesting), [0, 0, 0]);
+  assert.deepStrictEqual(inline.children.map((token) => token.content), ['A', '', 'B']);
+  assert.deepStrictEqual(inline.children.map((token) => token.info), ['source-info', '', 'source-info']);
+  for (const token of inline.children) {
+    assert.strictEqual(token.level, 3);
+    assert.deepStrictEqual(token.meta, { source: 'test' });
+    assert.deepStrictEqual(token.attrs, [['data-source', 'test']]);
+    assert.deepStrictEqual(token.map, [4, 6]);
+    assert.strictEqual(token.block, true);
+    assert.strictEqual(token.hidden, true);
+  }
+  assert.notStrictEqual(inline.children[0].meta, inline.children[1].meta);
+  assert.notStrictEqual(inline.children[0].attrs, inline.children[1].attrs);
+  assert.notStrictEqual(inline.children[0].map, inline.children[1].map);
+  assert.strictEqual(inline.children[1].markup, '');
+  assert.strictEqual(inline.children[1].info, '');
 }, pass);
 
 if (pass) {
